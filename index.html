@@ -1,0 +1,360 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="referrer" content="no-referrer">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; img-src 'self' data:; connect-src 'self' https://script.google.com https://script.googleusercontent.com https://viacep.com.br; base-uri 'self'; form-action 'self'; object-src 'none'">
+  <title>Simulador de Custo de Prensagem</title>
+  <link rel="stylesheet" href="style.css">
+  <link href="https://cdn.jsdelivr.net/npm/tom-select@2.3.1/dist/css/tom-select.css" rel="stylesheet">
+</head>
+<body>
+
+  <div class="toggle-theme">
+    <button id="themeButton" aria-label="Alternar tema">🌙</button>
+  </div>
+
+  <div class="container">
+
+    <div class="marca-area">
+      <div class="aviso-validacao">SISTEMA EM FASE DE TESTE PARA VALIDAÇÃO</div>
+      <div class="logo-area">
+        <img src="img/logo.png" class="logo" id="logoKorax" alt="Korax">
+      </div>
+    </div>
+
+    <h1>Simulador de Custo de Prensagem</h1>
+    <p class="subtitulo">Orçamentos de prensagem e montagem de kits</p>
+
+    <div class="card">
+      <div class="section-header">
+        <div>
+          <h2>ORÇAMENTO</h2>
+          <p>Preencha os dados do orçamento, vendedor e cliente antes de calcular.</p>
+        </div>
+      </div>
+
+      <div class="orc-bloco">
+        <div class="orc-bloco-titulo">Dados do Orçamento</div>
+        <div class="grid-2">
+          <div>
+            <label>Título principal</label>
+            <input type="text" id="orcTitulo" placeholder="Ex: título do orçamento">
+          </div>
+          <div>
+            <label>Orçamento n.</label>
+            <input type="text" id="orcNumero" placeholder=" Insira o n° do orçamento">
+          </div>
+          <div>
+            <label>Data da emissão</label>
+            <input type="date" id="orcData">
+          </div>
+          <div>
+            <label>Validade da proposta</label>
+            <input type="text" id="orcValidade" placeholder="Ex: 5 dias">
+          </div>
+          <div>
+            <label>Prazo de entrega</label>
+            <input type="text" id="orcPrazo" placeholder="Ex: 5 dias após o fechamento">
+          </div>
+          <div>
+            <label>Forma de pagamento</label>
+            <input type="text" id="orcPagamento" placeholder="Ex: A combinar">
+          </div>
+          <div>
+            <label>Frete por conta do</label>
+            <input type="text" id="orcFrete" placeholder="Ex: Destinatário">
+          </div>
+          <div>
+            <label>Contato do cliente</label>
+            <input type="text" id="orcContatoCliente" placeholder="Nome do comprador">
+          </div>
+        </div>
+      </div>
+
+      <div class="orc-bloco orc-bloco--empresa">
+        <div class="orc-bloco-titulo">Nossa Empresa <span class="orc-bloco-badge">EQUIP</span></div>
+        <div class="grid-2">
+          <div class="campo-largo">
+            <label>NOSSA EMPRESA</label>
+            <select id="orcNossaEmpresa" data-memoria>
+              <option value="sp">EQUIP KORAX SP</option>
+              <option value="sc">EQUIP KORAX SC</option>
+            </select>
+          </div>
+          <div class="campo-largo">
+            <label>Razão social</label>
+            <input type="text" id="orcEmpresaNome" data-memoria placeholder="Nome da empresa">
+          </div>
+          <div>
+            <label>CNPJ</label>
+            <input type="text" id="orcEmpresaCnpj" data-memoria placeholder="00.000.000/0000-00">
+          </div>
+          <div>
+            <label>IE</label>
+            <input type="text" id="orcEmpresaIe" data-memoria placeholder="Inscrição estadual">
+          </div>
+          <div>
+            <label>Site</label>
+            <input type="text" id="orcEmpresaSite" data-memoria placeholder="www.korax.com.br">
+          </div>
+          <div>
+            <label>Fone</label>
+            <input type="text" id="orcEmpresaFone" data-memoria placeholder="(00) 0000-0000">
+          </div>
+          <div>
+            <label>CEP</label>
+            <div class="cep-wrap">
+              <input type="text" id="orcEmpresaCep" data-memoria placeholder="00000-000" maxlength="9" data-cep-trigger>
+              <span class="cep-status" id="statusCepEmpresa"></span>
+            </div>
+          </div>
+          <div>
+            <label>Número</label>
+            <input type="text" id="orcEmpresaNumero" data-memoria placeholder="Ex: S/N, KM 23">
+          </div>
+          <div class="campo-largo">
+            <label>Logradouro <span class="label-auto">preenchido pelo CEP</span></label>
+            <input type="text" id="orcEmpresaLogradouro" data-memoria placeholder="Rua / Av. / Rodovia..." data-cep-field>
+          </div>
+          <div>
+            <label>Complemento</label>
+            <input type="text" id="orcEmpresaComplemento" data-memoria placeholder="Sala, Bloco, etc.">
+          </div>
+          <div>
+            <label>Bairro <span class="label-auto">preenchido pelo CEP</span></label>
+            <input type="text" id="orcEmpresaBairro" data-memoria placeholder="Bairro" data-cep-field>
+          </div>
+          <div>
+            <label>Cidade <span class="label-auto">preenchido pelo CEP</span></label>
+            <input type="text" id="orcEmpresaCidade" data-memoria placeholder="Joinville - SC" data-cep-field>
+          </div>
+          <div>
+            <label>UF <span class="label-auto">CEP</span></label>
+            <input type="text" id="orcEmpresaUf" data-memoria placeholder="SC" data-cep-field>
+          </div>
+        </div>
+        <input type="hidden" id="orcEmpresaEndereco" data-memoria>
+      </div>
+
+      <div class="orc-bloco orc-bloco--vendedor">
+        <div class="orc-bloco-titulo">Dados do Vendedor</div>
+        <div class="grid-2">
+          <div>
+            <label>Nome do vendedor</label>
+            <input type="text" id="orcVendedor" placeholder="Nome do vendedor">
+          </div>
+          <div>
+            <label>Telefone</label>
+            <input type="text" id="orcVendedorTelefone" placeholder="(00) 0000-0000">
+          </div>
+          <div class="campo-largo">
+            <label>E-mail</label>
+            <input type="email" id="orcVendedorEmail" placeholder="email@empresa.com.br">
+          </div>
+        </div>
+      </div>
+
+      <div class="orc-divisor">
+        <span>DADOS DO CLIENTE</span>
+      </div>
+
+      <div class="orc-bloco orc-bloco--cliente">
+        <div class="orc-bloco-titulo">Dados do Cliente</div>
+        <div class="grid-2">
+          <div class="ac-wrap">
+            <label>Empresa / Cliente</label>
+            <input type="text" id="orcCliente" placeholder="Nome do cliente" autocomplete="off">
+            <ul class="ac-lista" id="ac_orcCliente"></ul>
+          </div>
+          <div>
+            <label>CNPJ / CPF</label>
+            <input type="text" id="orcClienteCnpj" placeholder="00.000.000/0000-00">
+          </div>
+          <div>
+            <label>Telefone</label>
+            <input type="text" id="orcClienteTelefone" placeholder="(00) 00000-0000">
+          </div>
+          <div>
+            <label>E-mail</label>
+            <input type="email" id="orcClienteEmail" placeholder="cliente@email.com">
+          </div>
+          <div>
+            <label>CEP</label>
+            <div class="cep-wrap">
+              <input type="text" id="orcClienteCep" placeholder="00000-000" maxlength="9" data-cep-trigger>
+              <span class="cep-status" id="statusCepCliente"></span>
+            </div>
+          </div>
+          <div>
+            <label>Número</label>
+            <input type="text" id="orcClienteNumero" placeholder="Ex: 123">
+          </div>
+          <div class="campo-largo">
+            <label>Logradouro <span class="label-auto">preenchido pelo CEP</span></label>
+            <input type="text" id="orcClienteLogradouro" placeholder="Rua / Av. / Rodovia..." data-cep-field>
+          </div>
+          <div>
+            <label>Complemento</label>
+            <input type="text" id="orcClienteComplemento" placeholder="Sala, Bloco, etc.">
+          </div>
+          <div>
+            <label>Bairro <span class="label-auto">preenchido pelo CEP</span></label>
+            <input type="text" id="orcClienteBairro" placeholder="Bairro" data-cep-field>
+          </div>
+          <div>
+            <label>Cidade <span class="label-auto">preenchido pelo CEP</span></label>
+            <input type="text" id="orcClienteCidade" placeholder="Cidade" data-cep-field>
+          </div>
+          <div>
+            <label>UF <span class="label-auto">CEP</span></label>
+            <input type="text" id="orcClienteUf" placeholder="SP" data-cep-field>
+          </div>
+        </div>
+        <input type="hidden" id="orcClienteEndereco">
+      </div>
+    </div>
+
+    <div class="card faturamento-card">
+      <h2>FATURAMENTO</h2>
+      <label>Selecione o faturamento *</label>
+      <select id="faturamento">
+        <option value="">Selecione o faturamento</option>
+        <option value="sp18">São Paulo • 18%</option>
+        <option value="sc12">Santa Catarina • 12%</option>
+        <option value="sp4">São Paulo BR • 4%</option>
+        <option value="sc4">Santa Catarina BR • 4%</option>
+      </select>
+      <div class="descricao">O faturamento é obrigatório para carregar os preços corretamente.</div>
+    </div>
+
+    <div class="card">
+      <div class="card-header-row">
+        <h2>MANGUEIRAS</h2>
+        <button type="button" class="btn-add-inline" id="btnAddMangueira" disabled>
+          <span class="btn-add-icon">+</span> Adicionar mangueira
+        </button>
+      </div>
+
+      <div id="mangueirasContainer">
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header-row">
+        <h2>TERMINAIS</h2>
+      </div>
+
+      <div class="grid-2 terminais-fixos-grid">
+        <div class="terminal-slot">
+          <label>Terminal Obrigatório A *</label>
+          <select id="terminalA" disabled></select>
+          <div class="descricao" id="descTerminalA">Selecione o terminal principal.</div>
+          <input type="text" id="valorTerminalA" placeholder="0,00" readonly>
+        </div>
+        <div class="terminal-slot">
+          <label>Terminal Obrigatório B *</label>
+          <select id="terminalB" disabled></select>
+          <div class="descricao" id="descTerminalB">Selecione o terminal principal.</div>
+          <input type="text" id="valorTerminalB" placeholder="0,00" readonly>
+        </div>
+      </div>
+
+      <div class="terminais-extras-header">
+        <span class="titulo-extra">Terminais adicionais</span>
+        <button type="button" class="btn-add-inline" id="btnAddTerminal" disabled>
+          <span class="btn-add-icon">+</span> Adicionar terminal
+        </button>
+      </div>
+
+      <div id="terminaisExtrasContainer">
+      </div>
+    </div>
+
+    <div class="card kits-card">
+      <h2>GERENCIAMENTO DE KITS</h2>
+
+      <div class="kit-form-area">
+        <div>
+          <label>Nome do Kit *</label>
+          <input type="text" id="nomeKit" placeholder="Ex: código do cliente">
+        </div>
+        <div class="kit-actions-form">
+          <button type="button" id="btnSalvarKit">SALVAR KIT</button>
+          <button type="button" id="btnCancelarEdicaoKit" class="btn-secundario" hidden>CANCELAR EDIÇÃO</button>
+        </div>
+      </div>
+      <div class="descricao kit-desc-hint">Informe um nome e salve a montagem atual como kit. Use +/− para ajustar a quantidade.</div>
+
+      <div id="kitsLista" class="kits-lista"></div>
+    </div>
+
+    <div class="card custos-card">
+      <h2>CUSTOS ADICIONAIS</h2>
+      <div class="grid-2">
+        <div>
+          <label>Prensagem</label>
+          <input type="text" id="prensagem" placeholder="0,00">
+        </div>
+        <div>
+          <label>Embalagem</label>
+          <input type="text" id="embalagem" placeholder="0,00">
+        </div>
+      </div>
+      <div class="desconto-wrap">
+        <label>Desconto máximo (até 25%)</label>
+        <input type="number" id="desconto" max="25" placeholder="0">
+      </div>
+    </div>
+
+    <button id="btnCalcular" disabled>CALCULAR CUSTO</button>
+
+    <div id="resultado"></div>
+
+    <footer class="rodape">© 2026 · Victor Alves</footer>
+  </div>
+
+  <div id="modalAvisoLegal" class="modal-aviso-overlay" aria-hidden="true">
+    <div class="modal-aviso" role="dialog" aria-modal="true" aria-labelledby="modalAvisoLegalTitulo">
+      <h2 id="modalAvisoLegalTitulo">ATENÇÃO</h2>
+      <p>Este documento possui caráter exclusivamente informativo e destina-se à apresentação preliminar de itens, composições e valores estimados.</p>
+      <p>Não constitui documento fiscal, proposta comercial formal, contrato, pedido de compra ou garantia de fornecimento, estando sujeito à validação e confirmação das informações apresentadas.</p>
+      <label class="modal-aviso-check">
+        <input type="checkbox" id="chkAvisoLegal">
+        <span>Li e compreendi as informações acima.</span>
+      </label>
+      <div class="modal-aviso-acoes">
+        <button type="button" id="btnCancelarAvisoLegal" class="btn-secundario">CANCELAR</button>
+        <button type="button" id="btnConfirmarAvisoLegal" disabled>CONFIRMAR</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="orcamentoPrintArea" aria-hidden="true"></div>
+
+  <div id="previewFlutuante" class="preview-flutuante preview-flutuante--recolhido">
+    <button type="button" id="btnTogglePreview" class="preview-toggle" title="Gerar orçamento (prévia e PDF)">
+      <span class="preview-toggle-texto">Gerar orçamento</span>
+    </button>
+    <div class="preview-painel">
+      <div class="preview-painel-header">
+        <span>Prévia do orçamento</span>
+        <button type="button" id="btnFecharPreview" class="preview-fechar" title="Fechar">×</button>
+      </div>
+      <div class="preview-painel-corpo">
+        <div class="preview-conteudo-wrap">
+          <div id="previewConteudo" class="preview-conteudo"></div>
+        </div>
+      </div>
+      <div class="preview-painel-acoes">
+        <button type="button" id="btnGerarPdfFlutuante">IMPRIMIR | SALVAR PDF</button>
+      </div>
+    </div>
+  </div>
+
+
+  <script src="https://cdn.jsdelivr.net/npm/tom-select@2.3.1/dist/js/tom-select.complete.min.js"></script>
+  <script src="script.js"></script>
+</body>
+</html>
