@@ -17,17 +17,23 @@
         return Number.isFinite(numero) ? numero : 0;
     }
 
+    function calcularItemComIpi(valorBase, aliquota) {
+        const base = Math.max(0, Number(valorBase) || 0);
+        const percentual = Math.max(0, Math.min(Number(aliquota) || 0, 100));
+        const ipi = base * (percentual / 100);
+        return { base, percentual, ipi, total: base + ipi };
+    }
+
     function calcularTotal(inputs = {}) {
         let produtos = Number(inputs.mangueiras) || 0;
         (inputs.terminais || []).forEach(valor => { produtos += Number(valor) || 0; });
-        const percentualImposto = Math.max(0, Math.min(Number(inputs.imposto) || 0, 100));
-        const imposto = produtos * (percentualImposto / 100);
-        let subtotal = produtos + imposto;
+        const ipi = Math.max(0, Number(inputs.ipiTotal) || 0);
+        let subtotal = produtos;
         subtotal += Number(inputs.prensagem) || 0;
         subtotal += Number(inputs.embalagem) || 0;
         const percentual = Math.max(0, Math.min(Number(inputs.desconto) || 0, 25));
         const desconto = subtotal * (percentual / 100);
-        return { produtos, percentualImposto, imposto, subtotal, desconto, total: subtotal - desconto };
+        return { produtos, ipi, subtotal, desconto, total: subtotal - desconto };
     }
 
     function componenteSelecionado(value) {
@@ -50,5 +56,5 @@
         return '';
     }
 
-    return { numeroDeMoeda, calcularTotal, componenteSelecionado, erroValidacaoKit };
+    return { numeroDeMoeda, calcularItemComIpi, calcularTotal, componenteSelecionado, erroValidacaoKit };
 });

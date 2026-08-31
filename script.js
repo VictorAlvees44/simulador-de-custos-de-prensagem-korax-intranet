@@ -311,6 +311,12 @@ function adicionarLinhaMangueira() {
             <input type="text" id="valor_${id}" placeholder="0,00" readonly>
         </div>
 
+        <div class="ipi-item" id="ipiWrap_${id}" hidden>
+            <label for="ipi_${id}">IPI desta mangueira (%)</label>
+            <input type="number" id="ipi_${id}" min="0" max="100" step="0.01" value="0" data-ipi-item="${id}">
+            <div class="ipi-resumo" id="ipiResumo_${id}"></div>
+        </div>
+
         <button type="button" class="btn-remove-linha" data-remove-mangueira="${id}" aria-label="Remover mangueira ${contadorMangueira}" title="Remover">×</button>
     `;
     container.appendChild(div);
@@ -329,6 +335,7 @@ function adicionarLinhaMangueira() {
                 ? `Equivale a: <b>${m.toFixed(2)} m</b> • ${cm.toFixed(0)} cm`
                 : `Equivale a: <b>${cm.toFixed(0)} cm</b>`;
         }
+        atualizarResumoIpiItem(id, true);
         autoCalcular();
     });
 }
@@ -393,6 +400,12 @@ function adicionarLinhaTerminal() {
             <input type="text" id="valortotal_${id}" placeholder="0,00" readonly>
         </div>
 
+        <div class="ipi-item" id="ipiWrap_${id}" hidden>
+            <label for="ipi_${id}">IPI deste terminal (%)</label>
+            <input type="number" id="ipi_${id}" min="0" max="100" step="0.01" value="0" data-ipi-item="${id}">
+            <div class="ipi-resumo" id="ipiResumo_${id}"></div>
+        </div>
+
         <button type="button" class="btn-remove-linha" data-remove-terminal="${id}" aria-label="Remover terminal extra ${contadorTerminal}" title="Remover">×</button>
     `;
     container.appendChild(div);
@@ -421,6 +434,45 @@ function atualizarTotalTerminalExtra(id) {
     const total = precoUnit * qty;
     const elTotal = UI.get(`valortotal_${id}`);
     if (elTotal) elTotal.value = total > 0 ? moedaInput(total) : '';
+    atualizarResumoIpiItem(id, false);
+}
+
+function getIpiPercentual(id) {
+    const campo = UI.get(`ipi_${id}`);
+    const percentual = Math.max(0, Math.min(Number(campo?.value || 0), 100));
+    if (campo && Number(campo.value) !== percentual) campo.value = percentual;
+    return percentual;
+}
+
+function calcularValorItemComIpi(id, isMangueira) {
+    let base = 0;
+    if (isMangueira) {
+        const mm = Number(UI.get(`mm_${id}`)?.value || 0);
+        base = (valor(`valor_${id}`) / 1000) * mm;
+    } else {
+        const valorId = id === 'terminalA' ? 'valorTerminalA'
+            : id === 'terminalB' ? 'valorTerminalB'
+            : `valor_${id}`;
+        const quantidade = ['terminalA', 'terminalB'].includes(id) ? 1 : getQtdTerminalExtra(id);
+        base = valor(valorId) * quantidade;
+    }
+    return SimuladorLogic.calcularItemComIpi(base, getIpiPercentual(id));
+}
+
+function atualizarResumoIpiItem(id, isMangueira) {
+    const selecionado = SimuladorLogic.componenteSelecionado(UI.get(id)?.value);
+    const wrap = UI.get(`ipiWrap_${id}`);
+    if (wrap) wrap.hidden = !selecionado;
+    if (!selecionado) {
+        UI.setValue(`ipi_${id}`, '0');
+        UI.setHTML(`ipiResumo_${id}`, '');
+        return;
+    }
+    const calculo = calcularValorItemComIpi(id, isMangueira);
+    const baseIncompleta = calculo.base <= 0;
+    UI.setHTML(`ipiResumo_${id}`, baseIncompleta
+        ? 'Informe os dados do item para calcular o IPI.'
+        : `IPI: <b>${moeda(calculo.ipi)}</b> • Total do item: <b>${moeda(calculo.total)}</b>`);
 }
 
 function alterarQtdTerminalExtra(id, delta) {
@@ -467,6 +519,7 @@ function mostrarDescricaoSelect(id, isMangueira) {
     if (!value || value === 'na') {
         UI.setHTML(descId, isMangueira ? 'Selecione a mangueira.' : 'Opcional.');
         UI.setValue(valorId, '');
+        atualizarResumoIpiItem(id, isMangueira);
         return;
     }
 
@@ -487,6 +540,7 @@ function mostrarDescricaoSelect(id, isMangueira) {
             atualizarTotalTerminalExtra(id);
         }
     }
+    atualizarResumoIpiItem(id, isMangueira);
 }
 
 // Terminais fixos A/B com callback próprio
@@ -573,13 +627,16 @@ function calcular() {
     }
 
     let totalMangueiras = 0;
+    let totalIpi = 0;
     let algumaMangueiraComValor = false;
 
     for (const mid of mangueiraIds) {
         const mm = Number(document.getElementById(`mm_${mid}`)?.value || 0);
         const vMetro = valor(`valor_${mid}`);
         if (mm > 0 && vMetro > 0) {
-            totalMangueiras += (vMetro / 1000) * mm;
+            const item = calcularValorItemComIpi(mid, true);
+            totalMangueiras += item.total;
+            totalIpi += item.ipi;
             algumaMangueiraComValor = true;
         }
     }
@@ -590,12 +647,9 @@ function calcular() {
     }
 
     const terminais = getTerminalIds().map(id => {
-        const vid = id === 'terminalA' ? 'valorTerminalA'
-                  : id === 'terminalB' ? 'valorTerminalB'
-                  : `valor_${id}`;
-        const v = valor(vid);
-        const qty = ['terminalA', 'terminalB'].includes(id) ? 1 : getQtdTerminalExtra(id);
-        return v * qty;
+        const item = calcularValorItemComIpi(id, false);
+        totalIpi += item.ipi;
+        return item.total;
     });
 
     const resultado = calcularTotal({
@@ -603,18 +657,18 @@ function calcular() {
         terminais,
         prensagem: valor('prensagem'),
         embalagem: valor('embalagem'),
-        imposto: Number(UI.get('imposto')?.value || 0),
+        ipiTotal: totalIpi,
         desconto: Number(UI.get('desconto')?.value || 0)
     });
 
     UI.setHTML('resultado', `
         <div class="resultado-item">
-            <span>Subtotal</span>
-            <span>${moeda(resultado.subtotal)}</span>
+            <span>Produtos com IPI</span>
+            <span>${moeda(resultado.produtos)}</span>
         </div>
         <div class="resultado-item">
-            <span>Imposto sobre produtos (${resultado.percentualImposto}%)</span>
-            <span>${moeda(resultado.imposto)}</span>
+            <span>IPI incluído por item</span>
+            <span>${moeda(resultado.ipi)}</span>
         </div>
         <div class="resultado-item">
             <span>Desconto</span>
@@ -659,16 +713,6 @@ if (descontoInput) {
         autoCalcular();
     });
 }
-const impostoInput = document.getElementById('imposto');
-if (impostoInput) {
-    impostoInput.addEventListener('input', () => {
-        const valorAtual = Number(impostoInput.value);
-        if (valorAtual > 100) impostoInput.value = 100;
-        if (valorAtual < 0) impostoInput.value = 0;
-        autoCalcular();
-        renderizarKits();
-    });
-}
 
 /* Orçamento impresso */
 let kits = [];
@@ -701,25 +745,25 @@ function escaparHTML(value) {
 function obterValoresKitAtual() {
     const mangueiraIds = getMangueiraIds();
     let totalMangueiras = 0;
+    let totalIpi = 0;
 
     mangueiraIds.forEach(mid => {
         const mm = Number(document.getElementById(`mm_${mid}`)?.value || 0);
         const vMetro = valor(`valor_${mid}`);
         if (mm > 0 && vMetro > 0) {
-            totalMangueiras += (vMetro / 1000) * mm;
+            const item = calcularValorItemComIpi(mid, true);
+            totalMangueiras += item.total;
+            totalIpi += item.ipi;
         }
     });
 
     const terminais = getTerminalIds().map(id => {
-        const vid = id === 'terminalA' ? 'valorTerminalA'
-                  : id === 'terminalB' ? 'valorTerminalB'
-                  : `valor_${id}`;
-        const v = valor(vid);
-        const qty = ['terminalA', 'terminalB'].includes(id) ? 1 : getQtdTerminalExtra(id);
-        return isNaN(v) ? 0 : v * qty;
+        const item = calcularValorItemComIpi(id, false);
+        totalIpi += item.ipi;
+        return item.total;
     });
 
-    return calcularTotal({ mangueiras: totalMangueiras, terminais, prensagem: 0, embalagem: 0, desconto: 0 });
+    return calcularTotal({ mangueiras: totalMangueiras, terminais, ipiTotal: totalIpi, prensagem: 0, embalagem: 0, desconto: 0 });
 }
 
 function obterDadosKitDoFormulario() {
@@ -730,7 +774,8 @@ function obterDadosKitDoFormulario() {
         id: mid,
         value: UI.get(mid)?.value || '',
         texto: textoSelecionado(mid),
-        mm: UI.get(`mm_${mid}`)?.value || ''
+        mm: UI.get(`mm_${mid}`)?.value || '',
+        ipi: getIpiPercentual(mid)
     })).filter(m => m.value);
 
     return {
@@ -739,17 +784,21 @@ function obterDadosKitDoFormulario() {
         mangueiras: mangueirasDoFormulario,
         conjunto1: UI.get('terminalA')?.value || '',
         conjunto1Texto: textoSelecionado('terminalA'),
+        conjunto1Ipi: getIpiPercentual('terminalA'),
         conjunto2: UI.get('terminalB')?.value || '',
         conjunto2Texto: textoSelecionado('terminalB'),
+        conjunto2Ipi: getIpiPercentual('terminalB'),
         terminaisExtras: terminalIds
             .filter(id => !['terminalA', 'terminalB'].includes(id))
             .map(id => ({
                 id,
                 value: UI.get(id)?.value || '',
                 texto: textoSelecionado(id),
-                qty: getQtdTerminalExtra(id)
+                qty: getQtdTerminalExtra(id),
+                ipi: getIpiPercentual(id)
             })),
         subtotal: calculo.subtotal,
+        ipiTotal: calculo.ipi,
         descontoValor: calculo.desconto,
         total: calculo.total
     };
@@ -790,6 +839,8 @@ function limparFormularioKit() {
         setSelectValue(id, '');
         UI.setHTML(id === 'terminalA' ? 'descTerminalA' : 'descTerminalB', 'Selecione o terminal principal.');
         UI.setValue(id === 'terminalA' ? 'valorTerminalA' : 'valorTerminalB', '');
+        UI.setValue(`ipi_${id}`, '0');
+        atualizarResumoIpiItem(id, false);
     });
     document.querySelectorAll('.terminal-extra-linha').forEach(linha => {
         const sel = linha.querySelector('select');
@@ -823,7 +874,7 @@ function setQuantidadeKit(id, novoValor) {
 /* Lista de kits */
 function resumoMangueiras(kit) {
     return (kit.mangueiras || []).map(m =>
-        `<span>Mangueira: ${escaparHTML(m.texto)}${m.mm ? ' — ' + m.mm + ' mm' : ''}</span>`
+        `<span>Mangueira: ${escaparHTML(m.texto)}${m.mm ? ' — ' + m.mm + ' mm' : ''}${Number(m.ipi) > 0 ? ` — IPI ${Number(m.ipi)}%` : ''}</span>`
     ).join('');
 }
 
@@ -832,7 +883,8 @@ function resumoItensExtras(kit) {
         .filter(item => item.value && item.value !== 'na')
         .map(item => {
             const qty = Number(item.qty || 1);
-            return qty > 1 ? `${item.texto} ×${qty}` : item.texto;
+            const texto = qty > 1 ? `${item.texto} ×${qty}` : item.texto;
+            return `${texto}${Number(item.ipi) > 0 ? ` — IPI ${Number(item.ipi)}%` : ''}`;
         });
     if (extras.length === 0) return '';
     return `<span>Extras: ${extras.map(escaparHTML).join(' | ')}</span>`;
@@ -859,8 +911,8 @@ function renderizarKits() {
             <div class="kit-info">
                 <strong>${escaparHTML(kit.nome)}</strong>
                 ${resumoMangueiras(kit)}
-                ${kit.conjunto1Texto ? `<span>Terminal A: ${escaparHTML(kit.conjunto1Texto)}</span>` : ''}
-                ${kit.conjunto2Texto ? `<span>Terminal B: ${escaparHTML(kit.conjunto2Texto)}</span>` : ''}
+                ${kit.conjunto1Texto ? `<span>Terminal A: ${escaparHTML(kit.conjunto1Texto)}${Number(kit.conjunto1Ipi) > 0 ? ` — IPI ${Number(kit.conjunto1Ipi)}%` : ''}</span>` : ''}
+                ${kit.conjunto2Texto ? `<span>Terminal B: ${escaparHTML(kit.conjunto2Texto)}${Number(kit.conjunto2Ipi) > 0 ? ` — IPI ${Number(kit.conjunto2Ipi)}%` : ''}</span>` : ''}
                 ${resumoItensExtras(kit)}
             </div>
 
@@ -913,21 +965,41 @@ function textoItem(lista, codigo, fallback) {
 
 function recalcularKit(kit, faturamento) {
     let totalMangueiras = 0;
+    let totalIpi = 0;
     const mangueirasAtualizadas = (kit.mangueiras || []).map(m => {
         const mm = Number(m.mm || 0);
         const preco = precoItem(dados.mangueiras, m.value, faturamento);
-        if (mm > 0 && preco > 0) totalMangueiras += (preco / 1000) * mm;
+        const item = SimuladorLogic.calcularItemComIpi((preco / 1000) * mm, m.ipi);
+        if (mm > 0 && preco > 0) {
+            totalMangueiras += item.total;
+            totalIpi += item.ipi;
+        }
         return { ...m, texto: textoItem(dados.mangueiras, m.value, m.texto) };
     });
 
-    const terminaisPrincipais = [kit.conjunto1, kit.conjunto2]
-        .map(cod => precoItem(dados.terminais, cod, faturamento));
+    const terminaisPrincipais = [
+        { codigo: kit.conjunto1, ipi: kit.conjunto1Ipi },
+        { codigo: kit.conjunto2, ipi: kit.conjunto2Ipi }
+    ].map(terminal => {
+        const item = SimuladorLogic.calcularItemComIpi(
+            precoItem(dados.terminais, terminal.codigo, faturamento),
+            terminal.ipi
+        );
+        totalIpi += item.ipi;
+        return item.total;
+    });
     const terminaisExtras = (kit.terminaisExtras || [])
-        .map(extra => precoItem(dados.terminais, extra.value, faturamento) * Number(extra.qty || 1));
+        .map(extra => {
+            const base = precoItem(dados.terminais, extra.value, faturamento) * Number(extra.qty || 1);
+            const item = SimuladorLogic.calcularItemComIpi(base, extra.ipi);
+            totalIpi += item.ipi;
+            return item.total;
+        });
 
     const calculo = calcularTotal({
         mangueiras: totalMangueiras,
         terminais: [...terminaisPrincipais, ...terminaisExtras],
+        ipiTotal: totalIpi,
         prensagem: 0, embalagem: 0, desconto: 0
     });
 
@@ -942,6 +1014,7 @@ function recalcularKit(kit, faturamento) {
             texto: textoItem(dados.terminais, extra.value, extra.texto)
         })),
         subtotal: calculo.subtotal,
+        ipiTotal: calculo.ipi,
         descontoValor: calculo.desconto,
         total: calculo.total
     };
@@ -956,21 +1029,22 @@ function recalcularKitsSalvos(faturamento) {
 function calcularOrcamentoTotal() {
     const totalProdutos = kits.reduce((acc, kit) =>
         acc + Number(kit.total || 0) * Number(kit.quantidade || 1), 0);
+    const ipiValor = kits.reduce((acc, kit) =>
+        acc + Number(kit.ipiTotal || 0) * Number(kit.quantidade || 1), 0);
+    const produtosSemIpi = totalProdutos - ipiValor;
     const prensagem = valor('prensagem');
     const embalagem = valor('embalagem');
-    const impostoPercentual = Math.max(0, Math.min(Number(UI.get('imposto')?.value || 0), 100));
-    const impostoValor = totalProdutos * (impostoPercentual / 100);
-    const subtotal  = totalProdutos + impostoValor + prensagem + embalagem;
+    const subtotal  = totalProdutos + prensagem + embalagem;
     const descontoPercentual = Math.max(0, Math.min(Number(UI.get('desconto')?.value || 0), 25));
     const descontoValor = subtotal * (descontoPercentual / 100);
-    return { totalProdutos, impostoPercentual, impostoValor, prensagem, embalagem, subtotal, descontoPercentual, descontoValor, totalFinal: subtotal - descontoValor };
+    return { totalProdutos, produtosSemIpi, ipiValor, prensagem, embalagem, subtotal, descontoPercentual, descontoValor, totalFinal: subtotal - descontoValor };
 }
 
 function atualizarResultadoOrcamento() {
     const t = calcularOrcamentoTotal();
     UI.setHTML('resultado', `
         <div class="resultado-item"><span>Total dos produtos</span><span>${moeda(t.totalProdutos)}</span></div>
-        <div class="resultado-item"><span>Imposto sobre produtos (${t.impostoPercentual}%)</span><span>${moeda(t.impostoValor)}</span></div>
+        <div class="resultado-item"><span>IPI incluído por item</span><span>${moeda(t.ipiValor)}</span></div>
         <div class="resultado-item"><span>Prensagem</span><span>${moeda(t.prensagem)}</span></div>
         <div class="resultado-item"><span>Embalagem</span><span>${moeda(t.embalagem)}</span></div>
         <div class="resultado-item"><span>Desconto (${t.descontoPercentual}%)</span><span>${moeda(t.descontoValor)}</span></div>
@@ -1001,12 +1075,15 @@ function editarKit(id) {
         setTimeout(() => {
             setSelectValue(mid, m.value);
             UI.setValue(`mm_${mid}`, m.mm);
+            UI.setValue(`ipi_${mid}`, m.ipi || 0);
             mostrarDescricaoSelect(mid, true);
         }, 100);
     });
     setTimeout(() => {
         setSelectValue('terminalA', kit.conjunto1);
         setSelectValue('terminalB', kit.conjunto2);
+        UI.setValue('ipi_terminalA', kit.conjunto1Ipi || 0);
+        UI.setValue('ipi_terminalB', kit.conjunto2Ipi || 0);
         mostrarDescricaoSelect('terminalA', false);
         mostrarDescricaoSelect('terminalB', false);
     }, 50);
@@ -1015,6 +1092,7 @@ function editarKit(id) {
         const tid = `terminalExtra${contadorTerminal}`;
         setTimeout(() => {
             setSelectValue(tid, extra.value);
+            UI.setValue(`ipi_${tid}`, extra.ipi || 0);
             mostrarDescricaoSelect(tid, false);
             // Restaura a quantidade salva
             const qty = Number(extra.qty || 1);
@@ -1205,13 +1283,17 @@ function montarHtmlOrcamento() {
         const detalheLinhas = [];
         (kit.mangueiras || []).forEach(m => {
             if (!m.texto) return;
-            detalheLinhas.push(`Mangueira: ${m.texto}${m.mm ? ' — ' + m.mm + ' mm' : ''}`);
+            detalheLinhas.push(`Mangueira: ${m.texto}${m.mm ? ' — ' + m.mm + ' mm' : ''}${Number(m.ipi) > 0 ? ` — IPI ${Number(m.ipi)}%` : ''}`);
         });
-        if (kit.conjunto1Texto) detalheLinhas.push(`Terminal A: ${kit.conjunto1Texto}`);
-        if (kit.conjunto2Texto) detalheLinhas.push(`Terminal B: ${kit.conjunto2Texto}`);
+        if (kit.conjunto1Texto) detalheLinhas.push(`Terminal A: ${kit.conjunto1Texto}${Number(kit.conjunto1Ipi) > 0 ? ` — IPI ${Number(kit.conjunto1Ipi)}%` : ''}`);
+        if (kit.conjunto2Texto) detalheLinhas.push(`Terminal B: ${kit.conjunto2Texto}${Number(kit.conjunto2Ipi) > 0 ? ` — IPI ${Number(kit.conjunto2Ipi)}%` : ''}`);
         const extras = (kit.terminaisExtras || [])
             .filter(e => e.value && e.value !== 'na')
-            .map(e => { const q = Number(e.qty || 1); return q > 1 ? `${e.texto} ×${q}` : e.texto; });
+            .map(e => {
+                const q = Number(e.qty || 1);
+                const texto = q > 1 ? `${e.texto} ×${q}` : e.texto;
+                return `${texto}${Number(e.ipi) > 0 ? ` — IPI ${Number(e.ipi)}%` : ''}`;
+            });
         if (extras.length > 0) detalheLinhas.push(`Extras: ${extras.join(' | ')}`);
 
         todasLinhas.push({
@@ -1321,12 +1403,12 @@ function montarHtmlOrcamento() {
 
         <table class="pdf-totais-tabela">
             <tr>
-                <td class="tot-label">PRODUTOS</td>
-                <td class="tot-valor">${moeda(totais.totalProdutos)}</td>
+                <td class="tot-label">PRODUTOS SEM IPI</td>
+                <td class="tot-valor">${moeda(totais.produtosSemIpi)}</td>
             </tr>
             <tr>
-                <td class="tot-label">IMPOSTO SOBRE PRODUTOS (${totais.impostoPercentual}%)</td>
-                <td class="tot-valor">${moeda(totais.impostoValor)}</td>
+                <td class="tot-label">IPI APLICADO INDIVIDUALMENTE</td>
+                <td class="tot-valor">${moeda(totais.ipiValor)}</td>
             </tr>
             <tr>
                 <td class="tot-label">PRENSAGEM E EMBALAGEM</td>
@@ -1775,6 +1857,13 @@ function initAcoesTela() {
 
         const kitId = event.target.dataset?.kitInput;
         if (kitId) setQuantidadeKit(kitId, event.target.value);
+
+        const ipiItemId = event.target.dataset?.ipiItem;
+        if (ipiItemId) {
+            const isMangueira = ipiItemId.startsWith('mangueira');
+            atualizarResumoIpiItem(ipiItemId, isMangueira);
+            autoCalcular();
+        }
     });
 }
 

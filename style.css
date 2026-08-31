@@ -437,7 +437,7 @@ button:disabled {
 
 .mangueira-linha {
   display: grid;
-  grid-template-columns: minmax(0,2fr) minmax(0,1.2fr) minmax(0,1.2fr) 34px;
+  grid-template-columns: minmax(0,2fr) minmax(0,1.1fr) minmax(0,1fr) minmax(150px,1.2fr) 34px;
   gap: 12px;
   align-items: end;
   padding: 16px 14px 14px;
@@ -494,6 +494,37 @@ button:disabled {
 .terminal-slot .descricao { text-align: center; }
 .terminal-slot input[readonly] { text-align: center; }
 
+.ipi-item {
+  padding: 9px 10px;
+  background: var(--secondary-light);
+  border: 1px solid color-mix(in srgb, var(--secondary) 45%, var(--border));
+  border-radius: var(--radius-md);
+}
+
+.ipi-item[hidden] { display: none !important; }
+
+.ipi-item label,
+.terminal-slot .ipi-item label {
+  display: block;
+  margin-bottom: 5px;
+  color: var(--secondary);
+  text-align: left;
+}
+
+.ipi-item input[type="number"] {
+  text-align: center;
+  font-weight: 800;
+  border-color: var(--secondary);
+}
+
+.ipi-resumo {
+  min-height: 17px;
+  margin-top: 6px;
+  color: var(--text-muted);
+  font-size: 11.5px;
+  line-height: 1.35;
+}
+
 .terminais-extras-header {
   display: flex;
   align-items: center;
@@ -513,7 +544,7 @@ button:disabled {
 
 .terminal-extra-linha {
   display: grid;
-  grid-template-columns: minmax(0,1fr) 96px 120px 120px 34px;
+  grid-template-columns: minmax(0,1fr) 96px 110px 110px minmax(160px,1fr) 34px;
   gap: 12px;
   align-items: end;
   padding: 12px;

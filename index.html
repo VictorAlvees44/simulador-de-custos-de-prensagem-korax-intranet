@@ -249,16 +249,26 @@
 
       <div class="grid-2 terminais-fixos-grid">
         <div class="terminal-slot">
-          <label>Terminal Obrigatório A *</label>
+          <label for="terminalA">Terminal Obrigatório A *</label>
           <select id="terminalA" disabled></select>
           <div class="descricao" id="descTerminalA">Selecione o terminal principal.</div>
           <input type="text" id="valorTerminalA" placeholder="0,00" readonly>
+          <div class="ipi-item" id="ipiWrap_terminalA" hidden>
+            <label for="ipi_terminalA">IPI deste terminal (%)</label>
+            <input type="number" id="ipi_terminalA" min="0" max="100" step="0.01" value="0" data-ipi-item="terminalA">
+            <div class="ipi-resumo" id="ipiResumo_terminalA"></div>
+          </div>
         </div>
         <div class="terminal-slot">
-          <label>Terminal Obrigatório B *</label>
+          <label for="terminalB">Terminal Obrigatório B *</label>
           <select id="terminalB" disabled></select>
           <div class="descricao" id="descTerminalB">Selecione o terminal principal.</div>
           <input type="text" id="valorTerminalB" placeholder="0,00" readonly>
+          <div class="ipi-item" id="ipiWrap_terminalB" hidden>
+            <label for="ipi_terminalB">IPI deste terminal (%)</label>
+            <input type="number" id="ipi_terminalB" min="0" max="100" step="0.01" value="0" data-ipi-item="terminalB">
+            <div class="ipi-resumo" id="ipiResumo_terminalB"></div>
+          </div>
         </div>
       </div>
 
@@ -306,11 +316,6 @@
       <div class="desconto-wrap">
         <label>Desconto máximo (até 25%)</label>
         <input type="number" id="desconto" max="25" placeholder="0">
-      </div>
-      <div class="desconto-wrap">
-        <label>Imposto sobre produtos (%)</label>
-        <input type="number" id="imposto" min="0" max="100" step="0.01" placeholder="0">
-        <div class="descricao">Aplicado somente às mangueiras e aos terminais selecionados.</div>
       </div>
     </div>
 

@@ -2,6 +2,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const {
     numeroDeMoeda,
+    calcularItemComIpi,
     calcularTotal,
     erroValidacaoKit
 } = require('../logic.js');
@@ -13,17 +14,27 @@ test('interpreta valores brasileiros e decimais da API', () => {
     assert.equal(numeroDeMoeda('inválido'), 0);
 });
 
-test('aplica imposto somente aos produtos e limita desconto', () => {
+test('calcula o IPI individual de um produto', () => {
+    assert.deepEqual(calcularItemComIpi(150, 10), {
+        base: 150,
+        percentual: 10,
+        ipi: 15,
+        total: 165
+    });
+    assert.equal(calcularItemComIpi(100, 150).total, 200);
+});
+
+test('consolida produtos com IPI já aplicado e limita desconto', () => {
     const total = calcularTotal({
-        mangueiras: 100,
-        terminais: [20, 30],
+        mangueiras: 110,
+        terminais: [22, 33],
         prensagem: 10,
         embalagem: 5,
-        imposto: 10,
+        ipiTotal: 15,
         desconto: 30
     });
-    assert.equal(total.produtos, 150);
-    assert.equal(total.imposto, 15);
+    assert.equal(total.produtos, 165);
+    assert.equal(total.ipi, 15);
     assert.equal(total.subtotal, 180);
     assert.equal(total.desconto, 45);
     assert.equal(total.total, 135);

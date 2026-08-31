@@ -145,9 +145,10 @@ npm test
 
 ## Regras de cálculo
 
-- O imposto informado é aplicado à soma das mangueiras e dos terminais.
-- Prensagem e embalagem não entram na base do imposto.
-- O desconto, limitado a 25%, é aplicado depois da inclusão do imposto e dos custos adicionais.
+- Cada mangueira e terminal possui sua própria alíquota de IPI, exibida somente após a seleção do produto.
+- Na mangueira, o IPI incide sobre o valor proporcional ao comprimento informado; nos terminais, sobre o valor multiplicado pela quantidade.
+- Prensagem e embalagem não entram na base do IPI.
+- O desconto, limitado a 25%, é aplicado depois da inclusão dos IPIs individuais e dos custos adicionais.
 - Kits vazios ou kits com mangueira sem os dois terminais obrigatórios não podem ser salvos.
 
 ## Segurança e operação
