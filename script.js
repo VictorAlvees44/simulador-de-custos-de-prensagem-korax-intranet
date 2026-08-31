@@ -1,7 +1,8 @@
 ﻿/* Estado */
 const state = {
     faturamento: null,
-    selecoes: {}
+    selecoes: {},
+    catalogo: 'loading'
 };
 
 function atualizarState(id, value) {
@@ -133,25 +134,40 @@ function getMangueiraIds() {
 
 function sincronizarEstadoControles() {
     const temFaturamento = Boolean(UI.get('faturamento')?.value);
+    const catalogoDisponivel = state.catalogo === 'ready';
+    const podeUsar = temFaturamento && catalogoDisponivel;
 
     const terminalIds = getTerminalIds();
     terminalIds.forEach(id => {
         if (tomSelects[id]) {
-            temFaturamento ? tomSelects[id].enable() : tomSelects[id].disable();
+            podeUsar ? tomSelects[id].enable() : tomSelects[id].disable();
         } else {
             const campo = UI.get(id);
-            if (campo) campo.disabled = !temFaturamento;
+            if (campo) campo.disabled = !podeUsar;
         }
     });
 
     const btnAdd = UI.get('btnAddMangueira');
-    if (btnAdd) btnAdd.disabled = !temFaturamento;
+    if (btnAdd) btnAdd.disabled = !podeUsar;
 
     const btnAddT = UI.get('btnAddTerminal');
-    if (btnAddT) btnAddT.disabled = !temFaturamento;
+    if (btnAddT) btnAddT.disabled = !podeUsar;
 
     const btnCalc = UI.get('btnCalcular');
-    if (btnCalc) btnCalc.disabled = !temFaturamento;
+    if (btnCalc) btnCalc.disabled = !podeUsar;
+
+    const btnSalvarKit = UI.get('btnSalvarKit');
+    if (btnSalvarKit) btnSalvarKit.disabled = !catalogoDisponivel;
+}
+
+function atualizarStatusCatalogo(tipo, mensagem) {
+    state.catalogo = tipo;
+    const status = UI.get('statusCatalogo');
+    if (status) {
+        status.className = `catalogo-status catalogo-status--${tipo}`;
+        status.textContent = mensagem;
+    }
+    sincronizarEstadoControles();
 }
 
 /* Selects */
@@ -196,8 +212,8 @@ function carregarSelect(id, lista, isMangueira) {
         }
     });
 
-    const temFaturamento = Boolean(UI.get('faturamento')?.value);
-    if (!isMangueira && !temFaturamento && tomSelects[id]) {
+    const podeUsar = Boolean(UI.get('faturamento')?.value) && state.catalogo === 'ready';
+    if (!podeUsar && tomSelects[id]) {
         tomSelects[id].disable();
     }
 }
@@ -212,14 +228,25 @@ function setSelectValue(id, value) {
 }
 
 async function carregarDados() {
-
+    atualizarStatusCatalogo('loading', 'Carregando catálogo de produtos…');
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 15000);
     try {
-
-        const resposta = await fetch(CONFIG.apiUrl);
+        const resposta = await fetch(CONFIG.apiUrl, {
+            signal: controller.signal,
+            headers: { Accept: 'application/json' }
+        });
+        if (!resposta.ok) throw new Error(`Falha ao carregar catálogo (HTTP ${resposta.status}).`);
         const resultado = await resposta.json();
+        if (!Array.isArray(resultado?.mangueiras) || !Array.isArray(resultado?.terminais)) {
+            throw new Error('O catálogo retornou um formato inválido.');
+        }
 
-        dados.mangueiras = (resultado.mangueiras || []).map(normalizarLinhaPlanilha);
-        dados.terminais = (resultado.terminais || []).map(normalizarLinhaPlanilha);
+        dados.mangueiras = resultado.mangueiras.map(normalizarLinhaPlanilha).filter(item => item.codigo);
+        dados.terminais = resultado.terminais.map(normalizarLinhaPlanilha).filter(item => item.codigo);
+        if (dados.mangueiras.length === 0 || dados.terminais.length === 0) {
+            throw new Error('O catálogo está vazio ou incompleto.');
+        }
 
         getTerminalIds().forEach(id => {
             carregarSelect(id, dados.terminais, false);
@@ -229,9 +256,16 @@ async function carregarDados() {
             carregarSelect(id, dados.mangueiras, true);
         });
 
-    } catch {
+        atualizarStatusCatalogo('ready', `Catálogo carregado: ${dados.mangueiras.length} mangueiras e ${dados.terminais.length} terminais.`);
+    } catch (erro) {
         dados.mangueiras = [];
         dados.terminais = [];
+        const mensagem = erro?.name === 'AbortError'
+            ? 'O catálogo demorou demais para responder. Recarregue a página para tentar novamente.'
+            : `${erro?.message || 'Não foi possível carregar o catálogo.'} Recarregue a página para tentar novamente.`;
+        atualizarStatusCatalogo('error', mensagem);
+    } finally {
+        clearTimeout(timeoutId);
     }
 }
 
@@ -239,6 +273,10 @@ async function carregarDados() {
 let contadorMangueira = 0;
 
 function adicionarLinhaMangueira() {
+    if (state.catalogo !== 'ready') {
+        alert('Aguarde o carregamento do catálogo de produtos.');
+        return;
+    }
     const temFaturamento = Boolean(UI.get('faturamento')?.value);
     if (!temFaturamento) {
         alert('Selecione o faturamento primeiro.');
@@ -257,23 +295,23 @@ function adicionarLinhaMangueira() {
         <span class="linha-num">#${contadorMangueira}</span>
 
         <div>
-            <label>Mangueira</label>
+            <label for="${id}">Mangueira</label>
             <select id="${id}"></select>
             <div class="descricao" id="desc_${id}">Selecione a mangueira.</div>
         </div>
 
         <div>
-            <label>Comprimento (mm)</label>
+            <label for="mm_${id}">Comprimento (mm)</label>
             <input type="number" id="mm_${id}" min="1" placeholder="Ex: 500">
             <div class="info-mm" id="conv_${id}">Digite o comprimento.</div>
         </div>
 
         <div>
-            <label>Valor/metro</label>
+            <label for="valor_${id}">Valor/metro</label>
             <input type="text" id="valor_${id}" placeholder="0,00" readonly>
         </div>
 
-        <button type="button" class="btn-remove-linha" data-remove-mangueira="${id}" title="Remover">×</button>
+        <button type="button" class="btn-remove-linha" data-remove-mangueira="${id}" aria-label="Remover mangueira ${contadorMangueira}" title="Remover">×</button>
     `;
     container.appendChild(div);
 
@@ -308,6 +346,10 @@ function removerLinhaMangueira(id) {
 let contadorTerminal = 0;
 
 function adicionarLinhaTerminal() {
+    if (state.catalogo !== 'ready') {
+        alert('Aguarde o carregamento do catálogo de produtos.');
+        return;
+    }
     const temFaturamento = Boolean(UI.get('faturamento')?.value);
     if (!temFaturamento) {
         alert('Selecione o faturamento primeiro.');
@@ -324,34 +366,34 @@ function adicionarLinhaTerminal() {
     div.id = `linhaT_${id}`;
     div.innerHTML = `
         <div>
-            <label>Terminal Extra ${contadorTerminal}</label>
+            <label for="${id}">Terminal Extra ${contadorTerminal}</label>
             <select id="${id}"></select>
             <div class="descricao" id="desc_${id}">Opcional.</div>
         </div>
 
         <div>
-            <label>Qtd.</label>
+            <label for="qty_${id}">Qtd.</label>
             <div class="terminal-qty-control">
                 <button type="button" class="terminal-qty-btn btn-minus"
-                    data-terminal-qty="${id}" data-delta="-1" title="Diminuir">−</button>
+                    data-terminal-qty="${id}" data-delta="-1" aria-label="Diminuir quantidade do terminal extra ${contadorTerminal}" title="Diminuir">−</button>
                 <input type="number" id="qty_${id}" value="1" min="1" max="9999"
                     data-terminal-input="${id}">
                 <button type="button" class="terminal-qty-btn"
-                    data-terminal-qty="${id}" data-delta="1" title="Aumentar">+</button>
+                    data-terminal-qty="${id}" data-delta="1" aria-label="Aumentar quantidade do terminal extra ${contadorTerminal}" title="Aumentar">+</button>
             </div>
         </div>
 
         <div>
-            <label>Vl. unit.</label>
+            <label for="valor_${id}">Vl. unit.</label>
             <input type="text" id="valor_${id}" placeholder="0,00" readonly>
         </div>
 
         <div>
-            <label>Vl. total</label>
+            <label for="valortotal_${id}">Vl. total</label>
             <input type="text" id="valortotal_${id}" placeholder="0,00" readonly>
         </div>
 
-        <button type="button" class="btn-remove-linha" data-remove-terminal="${id}" title="Remover">×</button>
+        <button type="button" class="btn-remove-linha" data-remove-terminal="${id}" aria-label="Remover terminal extra ${contadorTerminal}" title="Remover">×</button>
     `;
     container.appendChild(div);
 
@@ -432,7 +474,7 @@ function mostrarDescricaoSelect(id, isMangueira) {
     const item  = lista.find(i => i.codigo === value);
     if (!item) return;
 
-    const preco = Number(String(item[faturamento] || 0).replace(',', '.'));
+    const preco = SimuladorLogic.numeroDeMoeda(item[faturamento]);
     atualizarState(id, preco);
 
     if (isMangueira) {
@@ -499,9 +541,7 @@ function moedaInput(valor) {
 }
 
 function numeroDeMoeda(value) {
-    const v = String(value || '').replace(/\s/g, '').replace(/\./g, '').replace(',', '.');
-    const num = Number(v);
-    return isNaN(num) ? 0 : num;
+    return SimuladorLogic.numeroDeMoeda(value);
 }
 
 function valor(id) {
@@ -512,20 +552,7 @@ function valor(id) {
 
 /* Cálculo */
 function calcularTotal(inputs) {
-    let subtotal = 0;
-    subtotal += inputs.mangueiras || 0;
-    (inputs.terminais || []).forEach(v => { subtotal += v || 0; });
-    subtotal += inputs.prensagem || 0;
-    subtotal += inputs.embalagem || 0;
-
-    const desconto = Math.max(0, Math.min(inputs.desconto || 0, 25));
-    const valorDesconto = subtotal * (desconto / 100);
-
-    return {
-        subtotal,
-        desconto: valorDesconto,
-        total: subtotal - valorDesconto
-    };
+    return SimuladorLogic.calcularTotal(inputs);
 }
 
 /* Cálculo principal */
@@ -576,6 +603,7 @@ function calcular() {
         terminais,
         prensagem: valor('prensagem'),
         embalagem: valor('embalagem'),
+        imposto: Number(UI.get('imposto')?.value || 0),
         desconto: Number(UI.get('desconto')?.value || 0)
     });
 
@@ -583,6 +611,10 @@ function calcular() {
         <div class="resultado-item">
             <span>Subtotal</span>
             <span>${moeda(resultado.subtotal)}</span>
+        </div>
+        <div class="resultado-item">
+            <span>Imposto sobre produtos (${resultado.percentualImposto}%)</span>
+            <span>${moeda(resultado.imposto)}</span>
         </div>
         <div class="resultado-item">
             <span>Desconto</span>
@@ -625,6 +657,16 @@ if (descontoInput) {
             descontoInput.classList.remove('campo-limite');
         }
         autoCalcular();
+    });
+}
+const impostoInput = document.getElementById('imposto');
+if (impostoInput) {
+    impostoInput.addEventListener('input', () => {
+        const valorAtual = Number(impostoInput.value);
+        if (valorAtual > 100) impostoInput.value = 100;
+        if (valorAtual < 0) impostoInput.value = 0;
+        autoCalcular();
+        renderizarKits();
     });
 }
 
@@ -714,21 +756,9 @@ function obterDadosKitDoFormulario() {
 }
 
 function validarKit(kit) {
-    if (!kit.nome) { alert('Informe o nome do kit.'); return false; }
-    if (!kit.faturamento) { alert('Selecione o faturamento antes de salvar.'); return false; }
-    if (kit.mangueiras.length === 0 && !kit.conjunto1 && !kit.conjunto2) {
-        alert('Selecione ao menos uma mangueira ou terminal.'); return false;
-    }
-    if (kit.mangueiras.some(m => !m.mm || Number(m.mm) <= 0)) {
-        alert('Informe o comprimento de todas as mangueiras.'); return false;
-    }
-    if (kit.mangueiras.length > 0 && (!kit.conjunto1 || kit.conjunto1 === 'na')) {
-        alert('Selecione o Terminal A.'); return false;
-    }
-    if (kit.mangueiras.length > 0 && (!kit.conjunto2 || kit.conjunto2 === 'na')) {
-        alert('Selecione o Terminal B.'); return false;
-    }
-    return true;
+    const erro = SimuladorLogic.erroValidacaoKit(kit);
+    if (erro) alert(erro);
+    return !erro;
 }
 
 function salvarKit() {
@@ -872,7 +902,7 @@ function buscarItem(lista, codigo) {
 function precoItem(lista, codigo, faturamento) {
     const item = buscarItem(lista, codigo);
     if (!item) return 0;
-    return Number(String(item[faturamento] || 0).replace(',', '.')) || 0;
+    return SimuladorLogic.numeroDeMoeda(item[faturamento]);
 }
 
 function textoItem(lista, codigo, fallback) {
@@ -928,16 +958,19 @@ function calcularOrcamentoTotal() {
         acc + Number(kit.total || 0) * Number(kit.quantidade || 1), 0);
     const prensagem = valor('prensagem');
     const embalagem = valor('embalagem');
-    const subtotal  = totalProdutos + prensagem + embalagem;
+    const impostoPercentual = Math.max(0, Math.min(Number(UI.get('imposto')?.value || 0), 100));
+    const impostoValor = totalProdutos * (impostoPercentual / 100);
+    const subtotal  = totalProdutos + impostoValor + prensagem + embalagem;
     const descontoPercentual = Math.max(0, Math.min(Number(UI.get('desconto')?.value || 0), 25));
     const descontoValor = subtotal * (descontoPercentual / 100);
-    return { totalProdutos, prensagem, embalagem, subtotal, descontoPercentual, descontoValor, totalFinal: subtotal - descontoValor };
+    return { totalProdutos, impostoPercentual, impostoValor, prensagem, embalagem, subtotal, descontoPercentual, descontoValor, totalFinal: subtotal - descontoValor };
 }
 
 function atualizarResultadoOrcamento() {
     const t = calcularOrcamentoTotal();
     UI.setHTML('resultado', `
         <div class="resultado-item"><span>Total dos produtos</span><span>${moeda(t.totalProdutos)}</span></div>
+        <div class="resultado-item"><span>Imposto sobre produtos (${t.impostoPercentual}%)</span><span>${moeda(t.impostoValor)}</span></div>
         <div class="resultado-item"><span>Prensagem</span><span>${moeda(t.prensagem)}</span></div>
         <div class="resultado-item"><span>Embalagem</span><span>${moeda(t.embalagem)}</span></div>
         <div class="resultado-item"><span>Desconto (${t.descontoPercentual}%)</span><span>${moeda(t.descontoValor)}</span></div>
@@ -1088,7 +1121,9 @@ function initMemoriaOrcamento() {
     }
     const dataEl = document.getElementById('orcData');
     if (dataEl && !dataEl.value) {
-        dataEl.value = new Date().toISOString().slice(0, 10);
+        const agora = new Date();
+        const local = new Date(agora.getTime() - agora.getTimezoneOffset() * 60000);
+        dataEl.value = local.toISOString().slice(0, 10);
     }
 }
 
@@ -1286,8 +1321,24 @@ function montarHtmlOrcamento() {
 
         <table class="pdf-totais-tabela">
             <tr>
+                <td class="tot-label">PRODUTOS</td>
+                <td class="tot-valor">${moeda(totais.totalProdutos)}</td>
+            </tr>
+            <tr>
+                <td class="tot-label">IMPOSTO SOBRE PRODUTOS (${totais.impostoPercentual}%)</td>
+                <td class="tot-valor">${moeda(totais.impostoValor)}</td>
+            </tr>
+            <tr>
+                <td class="tot-label">PRENSAGEM E EMBALAGEM</td>
+                <td class="tot-valor">${moeda(totais.prensagem + totais.embalagem)}</td>
+            </tr>
+            <tr>
                 <td class="tot-label">SUBTOTAL</td>
-                <td class="tot-valor">${moeda(totais.totalProdutos + totais.prensagem + totais.embalagem)}</td>
+                <td class="tot-valor">${moeda(totais.subtotal)}</td>
+            </tr>
+            <tr>
+                <td class="tot-label">DESCONTO (${totais.descontoPercentual}%)</td>
+                <td class="tot-valor">− ${moeda(totais.descontoValor)}</td>
             </tr>
             <tr class="tot-final">
                 <td class="tot-label">TOTAL GERAL</td>
@@ -1438,6 +1489,8 @@ const CEP_CONFIG = {
     }
 };
 
+const cepRequests = new Map();
+
 function mascaraCEP(v) {
     v = v.replace(/\D/g, '').substring(0, 8);
     return v.length > 5 ? v.replace(/^(\d{5})(\d)/, '$1-$2') : v;
@@ -1459,6 +1512,11 @@ async function buscarCEP(cep, config) {
         return;
     }
 
+    const requestAnterior = cepRequests.get(statusId);
+    if (requestAnterior) requestAnterior.abort();
+    const controller = new AbortController();
+    cepRequests.set(statusId, controller);
+
     setCepStatus(statusId, 'loading', '⟳ Buscando...');
     [logradouro, bairro, localidade, uf].forEach(id => {
         const el = document.getElementById(id);
@@ -1466,7 +1524,7 @@ async function buscarCEP(cep, config) {
     });
 
     try {
-        const res = await fetch(`https://viacep.com.br/ws/${cepLimpo}/json/`);
+        const res = await fetch(`https://viacep.com.br/ws/${cepLimpo}/json/`, { signal: controller.signal });
         if (!res.ok) throw new Error('HTTP ' + res.status);
         const dados = await res.json();
 
@@ -1493,12 +1551,15 @@ async function buscarCEP(cep, config) {
 
         setCepStatus(statusId, 'ok', '✓ ' + dados.localidade + ' — ' + dados.uf);
 
-    } catch {
+    } catch (erro) {
+        if (erro?.name === 'AbortError') return;
         setCepStatus(statusId, 'erro', '✗ Falha na busca');
         [logradouro, bairro, localidade, uf].forEach(id => {
             const el = document.getElementById(id);
             if (el) { el.disabled = false; el.classList.remove('campo-cep-carregando'); }
         });
+    } finally {
+        if (cepRequests.get(statusId) === controller) cepRequests.delete(statusId);
     }
 }
 
@@ -1575,6 +1636,8 @@ function acInit() {
     });
 }
 
+let focoAntesDoModal = null;
+
 function abrirModalAvisoLegal() {
     const modal = UI.get('modalAvisoLegal');
     const checkbox = UI.get('chkAvisoLegal');
@@ -1584,6 +1647,7 @@ function abrirModalAvisoLegal() {
         return;
     }
 
+    focoAntesDoModal = document.activeElement;
     checkbox.checked = false;
     confirmar.disabled = true;
     modal.classList.add('modal-aviso-overlay--ativo');
@@ -1596,6 +1660,8 @@ function fecharModalAvisoLegal() {
     if (!modal) return;
     modal.classList.remove('modal-aviso-overlay--ativo');
     modal.setAttribute('aria-hidden', 'true');
+    if (focoAntesDoModal && typeof focoAntesDoModal.focus === 'function') focoAntesDoModal.focus();
+    focoAntesDoModal = null;
 }
 
 function solicitarConfirmacaoCalculo() {
@@ -1623,6 +1689,38 @@ function initAvisoLegalCalculo() {
         avisoLegalConfirmado = true;
         fecharModalAvisoLegal();
         calcular();
+    });
+
+    UI.get('modalAvisoLegal')?.addEventListener('keydown', event => {
+        const modal = UI.get('modalAvisoLegal');
+        if (!modal?.classList.contains('modal-aviso-overlay--ativo')) return;
+        if (event.key === 'Escape') {
+            event.preventDefault();
+            fecharModalAvisoLegal();
+            return;
+        }
+        if (event.key !== 'Tab') return;
+        const focaveis = Array.from(modal.querySelectorAll(
+            'button:not([disabled]), input:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])'
+        )).filter(el => !el.hidden && el.offsetParent !== null);
+        if (focaveis.length === 0) return;
+        const primeiro = focaveis[0];
+        const ultimo = focaveis[focaveis.length - 1];
+        if (event.shiftKey && document.activeElement === primeiro) {
+            event.preventDefault();
+            ultimo.focus();
+        } else if (!event.shiftKey && document.activeElement === ultimo) {
+            event.preventDefault();
+            primeiro.focus();
+        }
+    });
+}
+
+function associarLabelsAosCampos() {
+    document.querySelectorAll('label:not([for])').forEach(label => {
+        if (label.querySelector('input, select, textarea')) return;
+        const campo = label.parentElement?.querySelector('input[id], select[id], textarea[id]');
+        if (campo) label.htmlFor = campo.id;
     });
 }
 
@@ -1682,6 +1780,7 @@ function initAcoesTela() {
 
 /* Inicialização */
 document.addEventListener('DOMContentLoaded', async () => {
+    associarLabelsAosCampos();
     initAcoesTela();
     initAvisoLegalCalculo();
     initMemoriaOrcamento();

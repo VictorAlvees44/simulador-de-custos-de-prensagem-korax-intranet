@@ -241,6 +241,59 @@ input[readonly] {
   border-color: transparent;
 }
 
+.catalogo-status {
+  margin-bottom: 14px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.catalogo-status--loading {
+  color: var(--text-muted);
+  background: var(--input-bg);
+}
+
+.catalogo-status--ready {
+  color: #166534;
+  background: #dcfce7;
+  border-color: #86efac;
+}
+
+.catalogo-status--error {
+  color: #991b1b;
+  background: #fee2e2;
+  border-color: #fca5a5;
+}
+
+.dark-mode .catalogo-status--ready {
+  color: #bbf7d0;
+  background: rgba(22, 101, 52, 0.28);
+}
+
+.dark-mode .catalogo-status--error {
+  color: #fecaca;
+  background: rgba(153, 27, 27, 0.28);
+}
+
+button:focus-visible,
+select:focus-visible,
+input:focus-visible,
+[tabindex]:focus-visible {
+  outline: 3px solid var(--primary);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
 .descricao {
   font-size: 12.5px;
   color: var(--text-muted);

@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="referrer" content="no-referrer">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; img-src 'self' data:; connect-src 'self' https://script.google.com https://script.googleusercontent.com https://viacep.com.br; base-uri 'self'; form-action 'self'; object-src 'none'">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://cdn.jsdelivr.net/npm/tom-select@2.3.1/dist/js/tom-select.complete.min.js; style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net/npm/tom-select@2.3.1/dist/css/tom-select.css; img-src 'self' data:; connect-src 'self' https://script.google.com https://script.googleusercontent.com https://viacep.com.br; base-uri 'self'; form-action 'self'; object-src 'none'; upgrade-insecure-requests">
   <title>Simulador de Custo de Prensagem</title>
   <link rel="stylesheet" href="style.css">
   <link href="https://cdn.jsdelivr.net/npm/tom-select@2.3.1/dist/css/tom-select.css" rel="stylesheet">
@@ -218,7 +218,8 @@
 
     <div class="card faturamento-card">
       <h2>FATURAMENTO</h2>
-      <label>Selecione o faturamento *</label>
+      <div id="statusCatalogo" class="catalogo-status catalogo-status--loading" role="status" aria-live="polite">Carregando catálogo de produtos…</div>
+      <label for="faturamento">Selecione o faturamento *</label>
       <select id="faturamento">
         <option value="">Selecione o faturamento</option>
         <option value="sp18">São Paulo • 18%</option>
@@ -306,19 +307,24 @@
         <label>Desconto máximo (até 25%)</label>
         <input type="number" id="desconto" max="25" placeholder="0">
       </div>
+      <div class="desconto-wrap">
+        <label>Imposto sobre produtos (%)</label>
+        <input type="number" id="imposto" min="0" max="100" step="0.01" placeholder="0">
+        <div class="descricao">Aplicado somente às mangueiras e aos terminais selecionados.</div>
+      </div>
     </div>
 
     <button id="btnCalcular" disabled>CALCULAR CUSTO</button>
 
-    <div id="resultado"></div>
+    <div id="resultado" role="status" aria-live="polite"></div>
 
     <footer class="rodape">© 2026 · Victor Alves</footer>
   </div>
 
   <div id="modalAvisoLegal" class="modal-aviso-overlay" aria-hidden="true">
-    <div class="modal-aviso" role="dialog" aria-modal="true" aria-labelledby="modalAvisoLegalTitulo">
+    <div class="modal-aviso" role="dialog" aria-modal="true" aria-labelledby="modalAvisoLegalTitulo" aria-describedby="modalAvisoLegalDescricao" tabindex="-1">
       <h2 id="modalAvisoLegalTitulo">ATENÇÃO</h2>
-      <p>Este documento possui caráter exclusivamente informativo e destina-se à apresentação preliminar de itens, composições e valores estimados.</p>
+      <p id="modalAvisoLegalDescricao">Este documento possui caráter exclusivamente informativo e destina-se à apresentação preliminar de itens, composições e valores estimados.</p>
       <p>Não constitui documento fiscal, proposta comercial formal, contrato, pedido de compra ou garantia de fornecimento, estando sujeito à validação e confirmação das informações apresentadas.</p>
       <label class="modal-aviso-check">
         <input type="checkbox" id="chkAvisoLegal">
@@ -355,6 +361,7 @@
 
 
   <script src="https://cdn.jsdelivr.net/npm/tom-select@2.3.1/dist/js/tom-select.complete.min.js"></script>
+  <script src="logic.js"></script>
   <script src="script.js"></script>
 </body>
 </html>

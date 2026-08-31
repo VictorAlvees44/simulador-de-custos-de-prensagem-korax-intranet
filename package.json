@@ -1,0 +1,8 @@
+{
+  "name": "simulador-de-custos",
+  "private": true,
+  "scripts": {
+    "test": "node --test",
+    "check": "node --check script.js && node --check logic.js && node --test"
+  }
+}

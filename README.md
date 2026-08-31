@@ -21,6 +21,7 @@ O projeto foi desenvolvido utilizando HTML, CSS e JavaScript puro, sem framework
 - Gerenciamento de kits reutilizáveis
 - Consulta automática de CEP
 - Controle de custos adicionais e descontos
+- Imposto percentual aplicado somente aos produtos selecionados
 - Atualização dinâmica da interface
 - Tema claro e escuro
 - Integração com fontes externas de dados
@@ -84,6 +85,10 @@ Os dados são consumidos através de endpoints externos utilizando requisições
 ├── index.html
 ├── style.css
 ├── script.js
+├── logic.js
+├── package.json
+├── tests/
+│   └── logic.test.js
 ├── img/
 │   ├── logo.png
 │   └── logo2.png
@@ -131,6 +136,25 @@ cd seu-repositorio
 ```
 
 Abra o arquivo `index.html` diretamente no navegador ou publique a aplicação em um servidor web.
+
+Para executar as verificações automatizadas (Node.js 18+):
+
+```bash
+npm test
+```
+
+## Regras de cálculo
+
+- O imposto informado é aplicado à soma das mangueiras e dos terminais.
+- Prensagem e embalagem não entram na base do imposto.
+- O desconto, limitado a 25%, é aplicado depois da inclusão do imposto e dos custos adicionais.
+- Kits vazios ou kits com mangueira sem os dois terminais obrigatórios não podem ser salvos.
+
+## Segurança e operação
+
+O simulador bloqueia os controles quando o catálogo remoto não pode ser validado e informa o erro na interface. O frontend também limita as origens externas por Content Security Policy.
+
+Como a aplicação é estática, preços e totais calculados no navegador não devem ser tratados como informação autenticada. Para uso comercial definitivo, o Google Apps Script deve exigir autenticação/autorização e recalcular ou validar os valores no servidor antes de registrar ou aprovar um orçamento. Cabeçalhos HTTP como `frame-ancestors`, HSTS e uma CSP de produção devem ser configurados também na hospedagem.
 
 ---
 
