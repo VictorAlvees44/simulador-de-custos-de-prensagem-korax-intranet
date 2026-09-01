@@ -149,6 +149,7 @@ npm test
 - Na mangueira, o IPI incide sobre o valor proporcional ao comprimento informado; nos terminais, sobre o valor multiplicado pela quantidade.
 - Prensagem e embalagem não entram na base do IPI.
 - O desconto, limitado a 25%, é aplicado depois da inclusão dos IPIs individuais e dos custos adicionais.
+- Na prévia e no PDF destinados ao cliente, a alíquota e o valor do desconto não são exibidos; os preços dos kits já aparecem líquidos.
 - Kits vazios ou kits com mangueira sem os dois terminais obrigatórios não podem ser salvos.
 
 ## Segurança e operação

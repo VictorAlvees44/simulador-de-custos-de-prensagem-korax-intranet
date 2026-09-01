@@ -1263,6 +1263,9 @@ document.querySelectorAll('#orcEmpresaFone, #orcVendedorTelefone, #orcClienteTel
 /* Orçamento impresso */
 function montarHtmlOrcamento() {
     const totais = calcularOrcamentoTotal();
+    // No documento do cliente, os preços dos kits já são líquidos do desconto.
+    // Assim, a alíquota e o valor concedido permanecem apenas na tela interna.
+    const fatorPrecoCliente = 1 - (totais.descontoPercentual / 100);
     const titulo = campoOrcamento('orcTitulo') || 'Orçamento';
     const endEmpresa = [
         campoOrcamento('orcEmpresaLogradouro') || campoOrcamento('orcEmpresaEndereco'),
@@ -1302,8 +1305,8 @@ function montarHtmlOrcamento() {
             detalheLinhas,
             qtdDisplay: qty,
             unidade: 'KIT',
-            vUnit: Number(kit.total || 0) > 0 ? Number(kit.total || 0) : null,
-            vTotal: totalKit > 0 ? totalKit : null
+            vUnit: Number(kit.total || 0) > 0 ? Number(kit.total || 0) * fatorPrecoCliente : null,
+            vTotal: totalKit > 0 ? totalKit * fatorPrecoCliente : null
         });
     });
 
@@ -1402,26 +1405,6 @@ function montarHtmlOrcamento() {
         <div class="pdf-itens-obs">* Especificações técnicas e demais medidas disponíveis sob consulta.</div>
 
         <table class="pdf-totais-tabela">
-            <tr>
-                <td class="tot-label">PRODUTOS SEM IPI</td>
-                <td class="tot-valor">${moeda(totais.produtosSemIpi)}</td>
-            </tr>
-            <tr>
-                <td class="tot-label">IPI APLICADO INDIVIDUALMENTE</td>
-                <td class="tot-valor">${moeda(totais.ipiValor)}</td>
-            </tr>
-            <tr>
-                <td class="tot-label">PRENSAGEM E EMBALAGEM</td>
-                <td class="tot-valor">${moeda(totais.prensagem + totais.embalagem)}</td>
-            </tr>
-            <tr>
-                <td class="tot-label">SUBTOTAL</td>
-                <td class="tot-valor">${moeda(totais.subtotal)}</td>
-            </tr>
-            <tr>
-                <td class="tot-label">DESCONTO (${totais.descontoPercentual}%)</td>
-                <td class="tot-valor">− ${moeda(totais.descontoValor)}</td>
-            </tr>
             <tr class="tot-final">
                 <td class="tot-label">TOTAL GERAL</td>
                 <td class="tot-valor">${moeda(totais.totalFinal)}</td>
