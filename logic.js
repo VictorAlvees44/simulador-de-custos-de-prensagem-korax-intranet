@@ -36,6 +36,49 @@
         return { produtos, ipi, subtotal, desconto, total: subtotal - desconto };
     }
 
+    // Projeta os valores já calculados para a proposta do cliente. O desconto
+    // permanece interno; produtos e IPI são separados, sem nova incidência.
+    function calcularValoresProposta(kits = [], custos = {}) {
+        const fator = 1 - Math.max(0, Math.min(Number(custos.descontoPercentual) || 0, 25)) / 100;
+        const itens = kits.map(kit => {
+            const quantidade = Math.max(1, Number(kit.quantidade) || 1);
+            const ipiUnitario = Math.max(0, Number(kit.ipiTotal) || 0);
+            const produtoUnitario = Math.max(0, (Number(kit.total) || 0) - ipiUnitario);
+            return {
+                quantidade,
+                vUnit: produtoUnitario * fator,
+                produtos: produtoUnitario * quantidade * fator,
+                ipi: ipiUnitario * quantidade * fator
+            };
+        });
+        const adicionais = ((Number(custos.prensagem) || 0) + (Number(custos.embalagem) || 0)) * fator;
+        const valores = [...itens.flatMap(item => [item.produtos, item.ipi]), adicionais];
+        const centavosExatos = valores.map(valor => Math.max(0, valor) * 100);
+        const centavos = centavosExatos.map(Math.floor);
+        const totalCentavos = Math.round(centavosExatos.reduce((soma, valor) => soma + valor, 0));
+        const restante = totalCentavos - centavos.reduce((soma, valor) => soma + valor, 0);
+        // Distribui eventuais centavos de arredondamento pelas maiores frações.
+        // Dessa forma as linhas, os subtotais e o total final sempre fecham.
+        const ordem = centavosExatos.map((valor, indice) => ({ indice, fracao: valor - centavos[indice] }))
+            .sort((a, b) => b.fracao - a.fracao || a.indice - b.indice);
+        for (let i = 0; i < restante; i++) centavos[ordem[i].indice]++;
+        const linhas = itens.map((item, indice) => ({
+            quantidade: item.quantidade,
+            vUnit: item.vUnit,
+            vTotal: centavos[indice * 2] / 100,
+            vIpi: centavos[indice * 2 + 1] / 100
+        }));
+        return {
+            itens: linhas,
+            totalProdutos: centavos.reduce((soma, valor, indice) =>
+                indice < itens.length * 2 && indice % 2 === 0 ? soma + valor : soma, 0) / 100,
+            totalIpi: centavos.reduce((soma, valor, indice) =>
+                indice < itens.length * 2 && indice % 2 === 1 ? soma + valor : soma, 0) / 100,
+            custosAdicionais: centavos[centavos.length - 1] / 100,
+            totalFinal: totalCentavos / 100
+        };
+    }
+
     function componenteSelecionado(value) {
         return Boolean(value && value !== 'na');
     }
@@ -56,5 +99,5 @@
         return '';
     }
 
-    return { numeroDeMoeda, calcularItemComIpi, calcularTotal, componenteSelecionado, erroValidacaoKit };
+    return { numeroDeMoeda, calcularItemComIpi, calcularTotal, calcularValoresProposta, componenteSelecionado, erroValidacaoKit };
 });

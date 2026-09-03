@@ -1263,9 +1263,7 @@ document.querySelectorAll('#orcEmpresaFone, #orcVendedorTelefone, #orcClienteTel
 /* Orçamento impresso */
 function montarHtmlOrcamento() {
     const totais = calcularOrcamentoTotal();
-    // No documento do cliente, os preços dos kits já são líquidos do desconto.
-    // Assim, a alíquota e o valor concedido permanecem apenas na tela interna.
-    const fatorPrecoCliente = 1 - (totais.descontoPercentual / 100);
+    const valoresCliente = SimuladorLogic.calcularValoresProposta(kits, totais);
     const titulo = campoOrcamento('orcTitulo') || 'Orçamento';
     const endEmpresa = [
         campoOrcamento('orcEmpresaLogradouro') || campoOrcamento('orcEmpresaEndereco'),
@@ -1279,23 +1277,22 @@ function montarHtmlOrcamento() {
     const endClienteCompleto = [endCliente, campoOrcamento('orcClienteComplemento')].filter(Boolean).join(' – ');
     let itemIndex = 0;
     const todasLinhas = [];
-    kits.forEach(kit => {
+    kits.forEach((kit, indice) => {
         const qty = Number(kit.quantidade || 1);
-        const totalKit = Number(kit.total || 0) * qty;
+        const valores = valoresCliente.itens[indice];
         itemIndex++;
         const detalheLinhas = [];
         (kit.mangueiras || []).forEach(m => {
             if (!m.texto) return;
-            detalheLinhas.push(`Mangueira: ${m.texto}${m.mm ? ' — ' + m.mm + ' mm' : ''}${Number(m.ipi) > 0 ? ` — IPI ${Number(m.ipi)}%` : ''}`);
+            detalheLinhas.push(`Mangueira: ${m.texto}${m.mm ? ' — ' + m.mm + ' mm' : ''}`);
         });
-        if (kit.conjunto1Texto) detalheLinhas.push(`Terminal A: ${kit.conjunto1Texto}${Number(kit.conjunto1Ipi) > 0 ? ` — IPI ${Number(kit.conjunto1Ipi)}%` : ''}`);
-        if (kit.conjunto2Texto) detalheLinhas.push(`Terminal B: ${kit.conjunto2Texto}${Number(kit.conjunto2Ipi) > 0 ? ` — IPI ${Number(kit.conjunto2Ipi)}%` : ''}`);
+        if (kit.conjunto1Texto) detalheLinhas.push(`Terminal A: ${kit.conjunto1Texto}`);
+        if (kit.conjunto2Texto) detalheLinhas.push(`Terminal B: ${kit.conjunto2Texto}`);
         const extras = (kit.terminaisExtras || [])
             .filter(e => e.value && e.value !== 'na')
             .map(e => {
                 const q = Number(e.qty || 1);
-                const texto = q > 1 ? `${e.texto} ×${q}` : e.texto;
-                return `${texto}${Number(e.ipi) > 0 ? ` — IPI ${Number(e.ipi)}%` : ''}`;
+                return q > 1 ? `${e.texto} ×${q}` : e.texto;
             });
         if (extras.length > 0) detalheLinhas.push(`Extras: ${extras.join(' | ')}`);
 
@@ -1305,8 +1302,9 @@ function montarHtmlOrcamento() {
             detalheLinhas,
             qtdDisplay: qty,
             unidade: 'KIT',
-            vUnit: Number(kit.total || 0) > 0 ? Number(kit.total || 0) * fatorPrecoCliente : null,
-            vTotal: totalKit > 0 ? totalKit * fatorPrecoCliente : null
+            vUnit: valores.vUnit,
+            vTotal: valores.vTotal,
+            vIpi: valores.vIpi
         });
     });
 
@@ -1383,8 +1381,9 @@ function montarHtmlOrcamento() {
                     <th class="col-desc">DESCRIÇÃO</th>
                     <th class="col-qtd">QTD</th>
                     <th class="col-unid">UNID.</th>
-                    <th class="col-vunit">VL. UNIT.</th>
-                    <th class="col-vtotal">VL. TOTAL</th>
+                    <th class="col-vunit">VL. UNIT.<br>SEM IPI</th>
+                    <th class="col-vtotal">VL. PRODUTOS<br>SEM IPI</th>
+                    <th class="col-ipi">VALOR DO IPI</th>
                 </tr>
             </thead>
             <tbody>
@@ -1399,15 +1398,28 @@ function montarHtmlOrcamento() {
                     <td class="col-unid">${linha.unidade}</td>
                     <td class="col-vunit">${linha.vUnit != null ? moeda(linha.vUnit) : '—'}</td>
                     <td class="col-vtotal">${linha.vTotal != null ? moeda(linha.vTotal) : '—'}</td>
+                    <td class="col-ipi">${moeda(linha.vIpi)}</td>
                 </tr>`).join('')}
             </tbody>
         </table>
         <div class="pdf-itens-obs">* Especificações técnicas e demais medidas disponíveis sob consulta.</div>
 
         <table class="pdf-totais-tabela">
+            <tr>
+                <td class="tot-label">TOTAL DOS PRODUTOS (SEM IPI)</td>
+                <td class="tot-valor">${moeda(valoresCliente.totalProdutos)}</td>
+            </tr>
+            <tr>
+                <td class="tot-label">TOTAL DO IPI</td>
+                <td class="tot-valor">${moeda(valoresCliente.totalIpi)}</td>
+            </tr>
+            ${valoresCliente.custosAdicionais > 0 ? `<tr>
+                <td class="tot-label">PRENSAGEM E EMBALAGEM</td>
+                <td class="tot-valor">${moeda(valoresCliente.custosAdicionais)}</td>
+            </tr>` : ''}
             <tr class="tot-final">
-                <td class="tot-label">TOTAL GERAL</td>
-                <td class="tot-valor">${moeda(totais.totalFinal)}</td>
+                <td class="tot-label">VALOR FINAL</td>
+                <td class="tot-valor">${moeda(valoresCliente.totalFinal)}</td>
             </tr>
         </table>
     </section>

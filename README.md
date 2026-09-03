@@ -88,7 +88,8 @@ Os dados são consumidos através de endpoints externos utilizando requisições
 ├── logic.js
 ├── package.json
 ├── tests/
-│   └── logic.test.js
+│   ├── logic.test.js
+│   └── proposta.test.js
 ├── img/
 │   ├── logo.png
 │   └── logo2.png
@@ -150,6 +151,8 @@ npm test
 - Prensagem e embalagem não entram na base do IPI.
 - O desconto, limitado a 25%, é aplicado depois da inclusão dos IPIs individuais e dos custos adicionais.
 - Na prévia e no PDF destinados ao cliente, a alíquota e o valor do desconto não são exibidos; os preços dos kits já aparecem líquidos.
+- As descrições técnicas da proposta não exibem alíquotas de IPI. A tabela separa os preços dos produtos sem IPI e o valor do IPI de cada kit, e o resumo apresenta total dos produtos, total do IPI, custos adicionais (quando houver) e valor final.
+- Os valores da proposta são líquidos do desconto interno e conciliados em centavos; o IPI não é somado novamente aos preços que já o incluem.
 - Kits vazios ou kits com mangueira sem os dois terminais obrigatórios não podem ser salvos.
 
 ## Segurança e operação

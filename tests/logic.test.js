@@ -4,6 +4,7 @@ const {
     numeroDeMoeda,
     calcularItemComIpi,
     calcularTotal,
+    calcularValoresProposta,
     erroValidacaoKit
 } = require('../logic.js');
 
@@ -71,4 +72,39 @@ test('exige os dois terminais para kits com mangueira', () => {
         conjunto2: 'na',
         terminaisExtras: []
     }), 'Selecione o Terminal B.');
+});
+
+test('separa produtos e IPI líquidos do desconto sem cobrar IPI duas vezes', () => {
+    const proposta = calcularValoresProposta([
+        { total: 110, ipiTotal: 10, quantidade: 2 },
+        { total: 70, ipiTotal: 20, quantidade: 1 }
+    ], { descontoPercentual: 10, prensagem: 10, embalagem: 5 });
+    assert.deepEqual(proposta.itens, [
+        { quantidade: 2, vUnit: 90, vTotal: 180, vIpi: 18 },
+        { quantidade: 1, vUnit: 45, vTotal: 45, vIpi: 18 }
+    ]);
+    assert.equal(proposta.totalProdutos, 225);
+    assert.equal(proposta.totalIpi, 36);
+    assert.equal(proposta.custosAdicionais, 13.5);
+    assert.equal(proposta.totalFinal, 274.5);
+});
+
+test('concilia centavos entre linhas, produtos, IPI e valor final', () => {
+    const proposta = calcularValoresProposta([
+        { total: 9.97246, ipiTotal: 0.66446, quantidade: 1 },
+        { total: 3.3333, ipiTotal: 0.1234, quantidade: 3 }
+    ], { descontoPercentual: 12.5, embalagem: 0.01 });
+    const centavos = valor => Math.round(valor * 100);
+    assert.equal(proposta.itens.reduce((soma, item) => soma + centavos(item.vTotal), 0), centavos(proposta.totalProdutos));
+    assert.equal(proposta.itens.reduce((soma, item) => soma + centavos(item.vIpi), 0), centavos(proposta.totalIpi));
+    assert.equal(centavos(proposta.totalProdutos) + centavos(proposta.totalIpi) + centavos(proposta.custosAdicionais), centavos(proposta.totalFinal));
+    assert.equal(centavos(proposta.totalFinal), Math.round((9.97246 + 3.3333 * 3 + 0.01) * 0.875 * 100));
+});
+
+test('proposta sem IPI mantém valor zero e trata kits antigos e lista vazia', () => {
+    const proposta = calcularValoresProposta([{ total: 100, quantidade: 2 }]);
+    assert.equal(proposta.totalProdutos, 200);
+    assert.equal(proposta.totalIpi, 0);
+    assert.equal(proposta.totalFinal, 200);
+    assert.equal(calcularValoresProposta([]).totalFinal, 0);
 });

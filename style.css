@@ -1487,6 +1487,7 @@ button:disabled {
 .col-unid  { width: 16mm; text-align: center; }
 .col-vunit { width: 22mm; text-align: right; }
 .col-vtotal { width: 22mm; text-align: right; }
+.col-ipi { width: 22mm; text-align: right; }
 
 .cel-num {
   font-weight: 800;
