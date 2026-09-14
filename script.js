@@ -1350,19 +1350,23 @@ function criarSnapshotOrcamento(id = orcamentoAtivoId || gerarOrcamentoId()) {
     });
 }
 
-function salvarOrcamentoLocal() {
+function salvarOrcamentoLocal(opcoes = {}) {
     if (kits.length === 0) {
         alert('Salve pelo menos um kit antes de salvar o orçamento.');
-        return;
+        return false;
     }
     const snapshot = criarSnapshotOrcamento();
     const indice = orcamentosSalvos.findIndex(item => item.id === snapshot.id);
     if (indice >= 0) orcamentosSalvos[indice] = snapshot;
     else orcamentosSalvos.push(snapshot);
-    if (!gravarOrcamentosLocais()) return;
+    if (!gravarOrcamentosLocais()) return false;
     orcamentoAtivoId = snapshot.id;
     renderizarOrcamentosSalvos(UI.get('buscaOrcamentos')?.value || '');
-    mostrarMensagemHistorico(indice >= 0 ? 'Orçamento atualizado neste navegador.' : 'Orçamento salvo neste navegador.');
+    const mensagem = opcoes.automatico
+        ? 'Orçamento salvo automaticamente antes da geração do PDF.'
+        : (indice >= 0 ? 'Orçamento atualizado neste navegador.' : 'Orçamento salvo neste navegador.');
+    mostrarMensagemHistorico(mensagem);
+    return true;
 }
 
 function abrirOrcamentoLocal(id) {
@@ -1467,7 +1471,7 @@ function exportarOrcamentos() {
     const blob = new Blob([OrcamentoStorage.serializar(orcamentosSalvos)], { type: 'application/json' });
     const link = document.createElement('a');
     link.href = URL.createObjectURL(blob);
-    link.download = `backup-orcamentos-korax-${new Date().toISOString().slice(0, 10)}.json`;
+    link.download = `copia-editavel-orcamentos-korax-${new Date().toISOString().slice(0, 10)}.json`;
     document.body.appendChild(link);
     link.click();
     link.remove();
@@ -1482,7 +1486,7 @@ async function importarOrcamentos(event) {
         orcamentosSalvos = OrcamentoStorage.mesclarListas(orcamentosSalvos, importados);
         if (!gravarOrcamentosLocais()) return;
         renderizarOrcamentosSalvos(UI.get('buscaOrcamentos')?.value || '');
-        mostrarMensagemHistorico(`${importados.length} orçamento(s) importado(s) do backup.`);
+        mostrarMensagemHistorico(`${importados.length} orçamento(s) restaurado(s) da cópia editável.`);
     } catch (erro) {
         mostrarMensagemHistorico(erro?.message || 'Não foi possível importar o backup.', 'erro');
     } finally {
@@ -1759,6 +1763,7 @@ function prepararOrcamentoParaPdf() {
 async function gerarPdf() {
     const area = prepararOrcamentoParaPdf();
     if (!area) return;
+    salvarOrcamentoLocal({ automatico: true });
     const nomeCliente = UI.get('orcCliente')?.value;
     if (nomeCliente) acSalvarNome(nomeCliente);
     const imgEl = area.querySelector('.pdf-logo-area img');

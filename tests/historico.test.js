@@ -9,6 +9,7 @@ const OrcamentoStorage = require('../storage.js');
 const script = fs.readFileSync(path.join(__dirname, '..', 'script.js'), 'utf8');
 
 function criarContexto() {
+    const armazenamento = new Map();
     const controles = {
         orcNumero: { id: 'orcNumero', value: '2026-001' },
         orcCliente: { id: 'orcCliente', value: 'Cliente Local' },
@@ -27,9 +28,13 @@ function criarContexto() {
         querySelector: () => null,
         addEventListener() {}
     };
-    const context = vm.createContext({ SimuladorLogic, OrcamentoStorage, document, controles });
+    const localStorage = {
+        getItem: chave => armazenamento.has(chave) ? armazenamento.get(chave) : null,
+        setItem: (chave, valor) => armazenamento.set(chave, String(valor))
+    };
+    const context = vm.createContext({ SimuladorLogic, OrcamentoStorage, document, controles, localStorage, alert() {} });
     vm.runInContext(script, context);
-    return { context, controles };
+    return { context, controles, armazenamento };
 }
 
 const kitSalvo = {
@@ -67,4 +72,32 @@ test('abrir orçamento restaura os campos e calcular não troca os preços hist�
     assert.equal(controles.faturamento.value, 'sc12');
     assert.match(controles.resultado.innerHTML, /R\$\s*220,00/);
     assert.equal(vm.runInContext('kits[0].total', context), 110);
+});
+
+test('salvamento automático registra uma cópia local editável', () => {
+    const { context, armazenamento } = criarContexto();
+    context.kitTeste = kitSalvo;
+    const salvo = vm.runInContext("kits = [kitTeste]; salvarOrcamentoLocal({ automatico: true })", context);
+    const [registro] = JSON.parse(armazenamento.get('korax_orcamentos_v1'));
+    assert.equal(salvo, true);
+    assert.equal(registro.campos.orcNumero, '2026-001');
+    assert.equal(registro.kits[0].total, 110);
+});
+
+test('gerar PDF solicita o salvamento automático antes da impressão', async () => {
+    const { context, controles } = criarContexto();
+    controles.orcCliente.value = '';
+    context.kitTeste = kitSalvo;
+    vm.runInContext(`
+        kits = [kitTeste];
+        let salvamentoAutomaticoRecebido = false;
+        let impressaoSolicitada = false;
+        salvarOrcamentoLocal = opcoes => { salvamentoAutomaticoRecebido = opcoes?.automatico === true; return true; };
+        prepararOrcamentoParaPdf = () => ({ querySelector() { return null; } });
+        ajustarRodapeOrcamento = () => {};
+        window = { print() { impressaoSolicitada = true; } };
+    `, context);
+    await vm.runInContext('gerarPdf()', context);
+    assert.equal(vm.runInContext('salvamentoAutomaticoRecebido', context), true);
+    assert.equal(vm.runInContext('impressaoSolicitada', context), true);
 });

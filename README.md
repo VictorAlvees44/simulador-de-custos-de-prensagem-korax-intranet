@@ -27,7 +27,7 @@ O projeto foi desenvolvido utilizando HTML, CSS e JavaScript puro, sem framework
 - Integração com fontes externas de dados
 - Geração de propostas comerciais
 - Histórico local de orçamentos com reabertura e edição
-- Exportação e importação de backup dos orçamentos
+- Download e restauração de cópia editável dos orçamentos
 
 ---
 
@@ -160,7 +160,8 @@ npm test
 - Kits vazios ou kits com mangueira sem os dois terminais obrigatórios não podem ser salvos.
 - Os orçamentos podem ser salvos no navegador, reabertos, editados, duplicados e excluídos. Cada registro mantém uma cópia dos preços e IPIs usados naquele momento.
 - A atualização pelos preços atuais é uma ação separada e exige confirmação; abrir ou recalcular o total não altera automaticamente os preços históricos.
-- O backup em JSON permite transferir ou restaurar o histórico. A limpeza dos dados do navegador remove o histórico local que não tiver sido exportado.
+- Ao gerar o PDF, o orçamento também é salvo automaticamente no navegador. A cópia editável em JSON permite transferir ou restaurar o histórico; o PDF continua sendo apenas o documento final para envio ou impressão.
+- A limpeza dos dados do navegador remove o histórico local que não tiver uma cópia editável baixada.
 
 ## Segurança e operação
 
