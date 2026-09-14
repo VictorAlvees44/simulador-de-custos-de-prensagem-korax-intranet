@@ -564,6 +564,9 @@ if (faturamentoSelect) {
         sincronizarEstadoControles();
         atualizarTodosValores();
         invalidarResultado();
+        if (kits.length > 0) {
+            mostrarMensagemHistorico('O faturamento mudou. Use “Atualizar preços” se quiser recalcular os kits atuais.', 'aviso');
+        }
     });
 }
 
@@ -612,11 +615,6 @@ function calcularTotal(inputs) {
 /* Cálculo principal */
 function calcular() {
     if (kits.length > 0) {
-        const faturamento = UI.get('faturamento')?.value;
-        if (faturamento) {
-            recalcularKitsSalvos(faturamento);
-            renderizarKits();
-        }
         atualizarResultadoOrcamento();
         return;
     }
@@ -893,9 +891,11 @@ function resumoItensExtras(kit) {
 function renderizarKits() {
     const container = document.getElementById('kitsLista');
     if (!container) return;
+    atualizarEstadoHistoricoUI();
 
     if (kits.length === 0) {
         container.innerHTML = `<div class="kits-vazio">Nenhum kit cadastrado ainda.</div>`;
+        atualizarPreviewOrcamento();
         return;
     }
 
@@ -1223,6 +1223,283 @@ function salvarDadosEmpresa() {
         if (campo) d[id] = campo.value;
     });
     try { localStorage.setItem('korax_empresa_v1', JSON.stringify(d)); } catch(e) {}
+}
+
+/* Histórico local de orçamentos */
+const ORCAMENTOS_STORAGE_KEY = 'korax_orcamentos_v1';
+let orcamentosSalvos = [];
+let orcamentoAtivoId = null;
+
+function gerarOrcamentoId() {
+    return `orc_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+}
+
+function copiarDados(value) {
+    return JSON.parse(JSON.stringify(value));
+}
+
+function camposDoOrcamento() {
+    const campos = {};
+    document.querySelectorAll('input[id^="orc"], select[id^="orc"]').forEach(campo => {
+        campos[campo.id] = campo.value || '';
+    });
+    return campos;
+}
+
+function nomeDoOrcamento(orcamento) {
+    const numero = String(orcamento?.campos?.orcNumero || '').trim();
+    const cliente = String(orcamento?.campos?.orcCliente || '').trim();
+    const titulo = String(orcamento?.campos?.orcTitulo || '').trim();
+    return [numero && `Orçamento ${numero}`, cliente, titulo].filter(Boolean).join(' — ') || 'Orçamento sem identificação';
+}
+
+function dataOrcamentoParaExibicao(orcamento) {
+    const dataInformada = orcamento?.campos?.orcData;
+    if (dataInformada) return formatarDataBR(dataInformada);
+    const data = new Date(orcamento?.atualizadoEm || '');
+    return Number.isNaN(data.getTime()) ? '' : data.toLocaleDateString('pt-BR');
+}
+
+function lerOrcamentosLocais() {
+    try {
+        const dados = JSON.parse(localStorage.getItem(ORCAMENTOS_STORAGE_KEY) || '[]');
+        return OrcamentoStorage.normalizarLista(dados);
+    } catch (erro) {
+        console.warn('Não foi possível ler os orçamentos locais.', erro);
+        return [];
+    }
+}
+
+function gravarOrcamentosLocais() {
+    try {
+        orcamentosSalvos = OrcamentoStorage.normalizarLista(orcamentosSalvos);
+        localStorage.setItem(ORCAMENTOS_STORAGE_KEY, JSON.stringify(orcamentosSalvos));
+        return true;
+    } catch (erro) {
+        alert('Não foi possível salvar no navegador. Verifique se o armazenamento local está disponível.');
+        return false;
+    }
+}
+
+function mostrarMensagemHistorico(mensagem, tipo = 'sucesso') {
+    const elemento = UI.get('historicoMensagem');
+    if (!elemento) return;
+    elemento.textContent = mensagem;
+    elemento.className = `historico-mensagem historico-mensagem--${tipo}`;
+}
+
+function atualizarEstadoHistoricoUI() {
+    const ativo = orcamentosSalvos.find(item => item.id === orcamentoAtivoId);
+    const status = UI.get('orcamentoAtivoStatus');
+    const salvar = UI.get('btnSalvarOrcamento');
+    const atualizarPrecos = UI.get('btnAtualizarPrecosOrcamento');
+    if (status) status.textContent = ativo ? `Editando: ${nomeDoOrcamento(ativo)}` : 'Novo orçamento';
+    if (salvar) salvar.textContent = ativo ? 'ATUALIZAR ORÇAMENTO' : 'SALVAR ORÇAMENTO';
+    if (atualizarPrecos) atualizarPrecos.hidden = kits.length === 0;
+}
+
+function renderizarOrcamentosSalvos(filtro = '') {
+    const container = UI.get('orcamentosSalvosLista');
+    if (!container) return;
+    const busca = normalizarTexto(filtro);
+    const filtrados = orcamentosSalvos.filter(orcamento => {
+        const textoBusca = [nomeDoOrcamento(orcamento), dataOrcamentoParaExibicao(orcamento), orcamento.atualizadoEm].join(' ');
+        return !busca || normalizarTexto(textoBusca).includes(busca);
+    });
+
+    if (filtrados.length === 0) {
+        container.innerHTML = `<div class="historico-vazio">${busca ? 'Nenhum orçamento encontrado.' : 'Nenhum orçamento salvo neste navegador.'}</div>`;
+        atualizarEstadoHistoricoUI();
+        return;
+    }
+
+    container.innerHTML = filtrados.map(orcamento => {
+        const id = escaparHTML(orcamento.id);
+        const ativo = orcamento.id === orcamentoAtivoId;
+        return `<article class="orcamento-salvo${ativo ? ' orcamento-salvo--ativo' : ''}">
+            <div class="orcamento-salvo-info">
+                <strong>${escaparHTML(nomeDoOrcamento(orcamento))}</strong>
+                <span>${escaparHTML(dataOrcamentoParaExibicao(orcamento))} · ${orcamento.kits.length} kit(s) · ${moeda(orcamento.totalFinal)}</span>
+            </div>
+            <div class="orcamento-salvo-acoes">
+                <button type="button" data-orcamento-action="abrir" data-orcamento-id="${id}">ABRIR</button>
+                <button type="button" data-orcamento-action="duplicar" data-orcamento-id="${id}" class="btn-secundario">DUPLICAR</button>
+                <button type="button" data-orcamento-action="excluir" data-orcamento-id="${id}" class="btn-perigo">EXCLUIR</button>
+            </div>
+        </article>`;
+    }).join('');
+    atualizarEstadoHistoricoUI();
+}
+
+function criarSnapshotOrcamento(id = orcamentoAtivoId || gerarOrcamentoId()) {
+    const existente = orcamentosSalvos.find(item => item.id === id);
+    const agora = new Date().toISOString();
+    return OrcamentoStorage.normalizarOrcamento({
+        id,
+        criadoEm: existente?.criadoEm || agora,
+        atualizadoEm: agora,
+        campos: camposDoOrcamento(),
+        faturamento: UI.get('faturamento')?.value || '',
+        kits: copiarDados(kits),
+        custos: {
+            prensagem: UI.get('prensagem')?.value || '',
+            embalagem: UI.get('embalagem')?.value || '',
+            desconto: UI.get('desconto')?.value || ''
+        },
+        totalFinal: calcularOrcamentoTotal().totalFinal
+    });
+}
+
+function salvarOrcamentoLocal() {
+    if (kits.length === 0) {
+        alert('Salve pelo menos um kit antes de salvar o orçamento.');
+        return;
+    }
+    const snapshot = criarSnapshotOrcamento();
+    const indice = orcamentosSalvos.findIndex(item => item.id === snapshot.id);
+    if (indice >= 0) orcamentosSalvos[indice] = snapshot;
+    else orcamentosSalvos.push(snapshot);
+    if (!gravarOrcamentosLocais()) return;
+    orcamentoAtivoId = snapshot.id;
+    renderizarOrcamentosSalvos(UI.get('buscaOrcamentos')?.value || '');
+    mostrarMensagemHistorico(indice >= 0 ? 'Orçamento atualizado neste navegador.' : 'Orçamento salvo neste navegador.');
+}
+
+function abrirOrcamentoLocal(id) {
+    const orcamento = orcamentosSalvos.find(item => item.id === id);
+    if (!orcamento) return;
+    limparFormularioKit();
+    document.querySelectorAll('input[id^="orc"], select[id^="orc"]').forEach(campo => {
+        if (Object.prototype.hasOwnProperty.call(orcamento.campos, campo.id)) campo.value = orcamento.campos[campo.id];
+    });
+    UI.setValue('faturamento', orcamento.faturamento);
+    UI.setValue('prensagem', orcamento.custos.prensagem);
+    UI.setValue('embalagem', orcamento.custos.embalagem);
+    UI.setValue('desconto', orcamento.custos.desconto);
+    state.faturamento = orcamento.faturamento;
+    kits = copiarDados(orcamento.kits);
+    kitEmEdicaoId = null;
+    orcamentoAtivoId = orcamento.id;
+    sincronizarEstadoControles();
+    renderizarKits();
+    atualizarResultadoOrcamento();
+    renderizarOrcamentosSalvos(UI.get('buscaOrcamentos')?.value || '');
+    mostrarMensagemHistorico('Orçamento aberto para edição. Os preços originais foram preservados.');
+    document.querySelector('.container')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+function limparOrcamentoAtual(pedirConfirmacao = true) {
+    const temConteudo = kits.length > 0 || UI.get('orcCliente')?.value || UI.get('orcNumero')?.value;
+    if (pedirConfirmacao && temConteudo && !confirm('Iniciar um novo orçamento? Alterações que ainda não foram salvas serão descartadas.')) return;
+    limparFormularioKit();
+    kits = [];
+    kitEmEdicaoId = null;
+    orcamentoAtivoId = null;
+    document.querySelectorAll('input[id^="orc"], select[id^="orc"]').forEach(campo => {
+        if (!CAMPOS_EMPRESA.includes(campo.id)) campo.value = '';
+    });
+    const dataEl = UI.get('orcData');
+    if (dataEl) {
+        const agora = new Date();
+        dataEl.value = new Date(agora.getTime() - agora.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
+    }
+    UI.setValue('faturamento', '');
+    UI.setValue('prensagem', '');
+    UI.setValue('embalagem', '');
+    UI.setValue('desconto', '');
+    state.faturamento = null;
+    sincronizarEstadoControles();
+    renderizarKits();
+    renderizarOrcamentosSalvos(UI.get('buscaOrcamentos')?.value || '');
+    mostrarMensagemHistorico('Novo orçamento iniciado.');
+}
+
+function duplicarOrcamentoLocal(id) {
+    const origem = orcamentosSalvos.find(item => item.id === id);
+    if (!origem) return;
+    const copia = copiarDados(origem);
+    const agora = new Date().toISOString();
+    copia.id = gerarOrcamentoId();
+    copia.criadoEm = agora;
+    copia.atualizadoEm = agora;
+    const numero = String(copia.campos.orcNumero || '').trim();
+    copia.campos.orcNumero = numero ? `${numero} - CÓPIA` : 'CÓPIA';
+    orcamentosSalvos.push(copia);
+    if (!gravarOrcamentosLocais()) return;
+    renderizarOrcamentosSalvos(UI.get('buscaOrcamentos')?.value || '');
+    abrirOrcamentoLocal(copia.id);
+    mostrarMensagemHistorico('Cópia criada. Edite os dados e atualize o orçamento.');
+}
+
+function excluirOrcamentoLocal(id) {
+    const orcamento = orcamentosSalvos.find(item => item.id === id);
+    if (!orcamento || !confirm(`Excluir "${nomeDoOrcamento(orcamento)}" deste navegador?`)) return;
+    orcamentosSalvos = orcamentosSalvos.filter(item => item.id !== id);
+    if (!gravarOrcamentosLocais()) return;
+    if (orcamentoAtivoId === id) limparOrcamentoAtual(false);
+    renderizarOrcamentosSalvos(UI.get('buscaOrcamentos')?.value || '');
+    mostrarMensagemHistorico('Orçamento excluído deste navegador.');
+}
+
+function atualizarPrecosDoOrcamento() {
+    const faturamento = UI.get('faturamento')?.value;
+    if (kits.length === 0) return;
+    if (state.catalogo !== 'ready') {
+        alert('Aguarde o catálogo de produtos carregar antes de atualizar os preços.');
+        return;
+    }
+    if (!faturamento) {
+        alert('Selecione o faturamento antes de atualizar os preços.');
+        return;
+    }
+    if (!confirm('Atualizar todos os produtos deste orçamento com os preços atuais do catálogo?')) return;
+    recalcularKitsSalvos(faturamento);
+    renderizarKits();
+    atualizarResultadoOrcamento();
+    mostrarMensagemHistorico('Preços atualizados. Clique em “Atualizar orçamento” para salvar a alteração.', 'aviso');
+}
+
+function exportarOrcamentos() {
+    if (orcamentosSalvos.length === 0) {
+        alert('Não há orçamentos salvos para exportar.');
+        return;
+    }
+    const blob = new Blob([OrcamentoStorage.serializar(orcamentosSalvos)], { type: 'application/json' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = `backup-orcamentos-korax-${new Date().toISOString().slice(0, 10)}.json`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(link.href);
+}
+
+async function importarOrcamentos(event) {
+    const arquivo = event.target.files?.[0];
+    if (!arquivo) return;
+    try {
+        const importados = OrcamentoStorage.desserializar(await arquivo.text());
+        orcamentosSalvos = OrcamentoStorage.mesclarListas(orcamentosSalvos, importados);
+        if (!gravarOrcamentosLocais()) return;
+        renderizarOrcamentosSalvos(UI.get('buscaOrcamentos')?.value || '');
+        mostrarMensagemHistorico(`${importados.length} orçamento(s) importado(s) do backup.`);
+    } catch (erro) {
+        mostrarMensagemHistorico(erro?.message || 'Não foi possível importar o backup.', 'erro');
+    } finally {
+        event.target.value = '';
+    }
+}
+
+function initHistoricoOrcamentos() {
+    orcamentosSalvos = lerOrcamentosLocais();
+    renderizarOrcamentosSalvos();
+    UI.get('btnSalvarOrcamento')?.addEventListener('click', salvarOrcamentoLocal);
+    UI.get('btnNovoOrcamento')?.addEventListener('click', () => limparOrcamentoAtual(true));
+    UI.get('btnAtualizarPrecosOrcamento')?.addEventListener('click', atualizarPrecosDoOrcamento);
+    UI.get('btnExportarOrcamentos')?.addEventListener('click', exportarOrcamentos);
+    UI.get('btnImportarOrcamentos')?.addEventListener('click', () => UI.get('arquivoImportarOrcamentos')?.click());
+    UI.get('arquivoImportarOrcamentos')?.addEventListener('change', importarOrcamentos);
+    UI.get('buscaOrcamentos')?.addEventListener('input', event => renderizarOrcamentosSalvos(event.target.value));
 }
 
 function campoOrcamento(id) { return UI.get(id)?.value || ''; }
@@ -1839,11 +2116,19 @@ function initAcoesTela() {
 
         const kitAction = alvo.dataset.kitAction;
         const kitId = alvo.dataset.kitId;
-        if (!kitAction || !kitId) return;
+        if (kitAction && kitId) {
+            if (kitAction === 'editar') editarKit(kitId);
+            if (kitAction === 'duplicar') duplicarKit(kitId);
+            if (kitAction === 'excluir') excluirKit(kitId);
+            return;
+        }
 
-        if (kitAction === 'editar') editarKit(kitId);
-        if (kitAction === 'duplicar') duplicarKit(kitId);
-        if (kitAction === 'excluir') excluirKit(kitId);
+        const orcamentoAction = alvo.dataset.orcamentoAction;
+        const orcamentoId = alvo.dataset.orcamentoId;
+        if (!orcamentoAction || !orcamentoId) return;
+        if (orcamentoAction === 'abrir') abrirOrcamentoLocal(orcamentoId);
+        if (orcamentoAction === 'duplicar') duplicarOrcamentoLocal(orcamentoId);
+        if (orcamentoAction === 'excluir') excluirOrcamentoLocal(orcamentoId);
     });
 
     document.addEventListener('input', event => {
@@ -1868,6 +2153,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     initAcoesTela();
     initAvisoLegalCalculo();
     initMemoriaOrcamento();
+    initHistoricoOrcamentos();
     initTerminaisFixos();
     sincronizarEstadoControles();
     initCEP();

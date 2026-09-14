@@ -216,6 +216,30 @@
       </div>
     </div>
 
+    <section class="card historico-card" aria-labelledby="historicoTitulo">
+      <div class="section-header historico-cabecalho">
+        <div>
+          <h2 id="historicoTitulo">ORÇAMENTOS SALVOS</h2>
+          <p>Os orçamentos ficam guardados somente neste navegador.</p>
+        </div>
+        <span id="orcamentoAtivoStatus" class="orcamento-ativo-status">Novo orçamento</span>
+      </div>
+
+      <div class="historico-acoes">
+        <button type="button" id="btnSalvarOrcamento" class="btn-historico btn-historico--principal">SALVAR ORÇAMENTO</button>
+        <button type="button" id="btnNovoOrcamento" class="btn-historico btn-secundario">NOVO ORÇAMENTO</button>
+        <button type="button" id="btnAtualizarPrecosOrcamento" class="btn-historico btn-secundario" hidden>ATUALIZAR PREÇOS</button>
+        <button type="button" id="btnExportarOrcamentos" class="btn-historico btn-secundario">EXPORTAR BACKUP</button>
+        <button type="button" id="btnImportarOrcamentos" class="btn-historico btn-secundario">IMPORTAR BACKUP</button>
+        <input type="file" id="arquivoImportarOrcamentos" accept="application/json,.json" hidden>
+      </div>
+
+      <label for="buscaOrcamentos">Pesquisar por número, cliente ou data</label>
+      <input type="text" id="buscaOrcamentos" placeholder="Digite para pesquisar nos orçamentos salvos">
+      <div id="historicoMensagem" class="historico-mensagem" role="status" aria-live="polite"></div>
+      <div id="orcamentosSalvosLista" class="orcamentos-salvos-lista"></div>
+    </section>
+
     <div class="card faturamento-card">
       <h2>FATURAMENTO</h2>
       <div id="statusCatalogo" class="catalogo-status catalogo-status--loading" role="status" aria-live="polite">Carregando catálogo de produtos…</div>
@@ -367,6 +391,7 @@
 
   <script src="https://cdn.jsdelivr.net/npm/tom-select@2.3.1/dist/js/tom-select.complete.min.js"></script>
   <script src="logic.js"></script>
+  <script src="storage.js"></script>
   <script src="script.js"></script>
 </body>
 </html>

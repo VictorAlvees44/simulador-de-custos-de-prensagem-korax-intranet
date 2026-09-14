@@ -26,6 +26,8 @@ O projeto foi desenvolvido utilizando HTML, CSS e JavaScript puro, sem framework
 - Tema claro e escuro
 - Integração com fontes externas de dados
 - Geração de propostas comerciais
+- Histórico local de orçamentos com reabertura e edição
+- Exportação e importação de backup dos orçamentos
 
 ---
 
@@ -89,7 +91,9 @@ Os dados são consumidos através de endpoints externos utilizando requisições
 ├── package.json
 ├── tests/
 │   ├── logic.test.js
-│   └── proposta.test.js
+│   ├── historico.test.js
+│   ├── proposta.test.js
+│   └── storage.test.js
 ├── img/
 │   ├── logo.png
 │   └── logo2.png
@@ -127,13 +131,13 @@ Concentra regras de negócio, cálculos, validações, gerenciamento de estado e
 Clone o repositório:
 
 ```bash
-git clone https://github.com/seu-usuario/seu-repositorio.git
+git clone https://github.com/VictorAlvees44/simulador-de-custos-de-prensagem-korax-intranet.git
 ```
 
 Acesse a pasta:
 
 ```bash
-cd seu-repositorio
+cd simulador-de-custos-de-prensagem-korax-intranet
 ```
 
 Abra o arquivo `index.html` diretamente no navegador ou publique a aplicação em um servidor web.
@@ -154,6 +158,9 @@ npm test
 - As descrições técnicas da proposta não exibem alíquotas de IPI. A tabela separa os preços dos produtos sem IPI e o valor do IPI de cada kit, e o resumo apresenta total dos produtos, total do IPI, custos adicionais (quando houver) e valor final.
 - Os valores da proposta são líquidos do desconto interno e conciliados em centavos; o IPI não é somado novamente aos preços que já o incluem.
 - Kits vazios ou kits com mangueira sem os dois terminais obrigatórios não podem ser salvos.
+- Os orçamentos podem ser salvos no navegador, reabertos, editados, duplicados e excluídos. Cada registro mantém uma cópia dos preços e IPIs usados naquele momento.
+- A atualização pelos preços atuais é uma ação separada e exige confirmação; abrir ou recalcular o total não altera automaticamente os preços históricos.
+- O backup em JSON permite transferir ou restaurar o histórico. A limpeza dos dados do navegador remove o histórico local que não tiver sido exportado.
 
 ## Segurança e operação
 
@@ -192,7 +199,6 @@ Funcionalidades previstas para futuras versões:
 
 - Sistema de autenticação
 - Controle de permissões
-- Histórico de orçamentos
 - Dashboard analítico
 - API dedicada
 - Integração com ERP
