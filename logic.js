@@ -64,7 +64,7 @@
         for (let i = 0; i < restante; i++) centavos[ordem[i].indice]++;
         const linhas = itens.map((item, indice) => ({
             quantidade: item.quantidade,
-            vUnit: item.vUnit,
+            vUnit: centavos[indice * 2] / 100 / item.quantidade,
             vTotal: centavos[indice * 2] / 100,
             vIpi: centavos[indice * 2 + 1] / 100
         }));

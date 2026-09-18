@@ -62,3 +62,27 @@ test('importação rejeita arquivo alheio e normaliza valores inseguros', () => 
     assert.equal(normalizado.kits[0].conjunto1Ipi, 100);
     assert.equal(normalizado.kits[0].total, 0);
 });
+
+test('histórico não apaga silenciosamente o orçamento mais antigo ao passar de 100', () => {
+    const lista = Array.from({ length: 101 }, (_, indice) => orcamento({
+        id: `orc_${indice}`,
+        atualizadoEm: new Date(2026, 8, 1, 0, indice).toISOString()
+    }));
+    const normalizados = Storage.normalizarLista(lista);
+    assert.equal(normalizados.length, 101);
+    assert.ok(normalizados.some(item => item.id === 'orc_0'));
+});
+
+test('backup preserva preços unitários e distingue registros antigos sem preço por componente', () => {
+    const original = orcamento();
+    original.kits[0].mangueiras[0].precoMetro = 6.94;
+    original.kits[0].conjunto1Preco = 12.5;
+    original.kits[0].conjunto2Preco = 8.2;
+    original.kits[0].terminaisExtras[0].precoUnitario = 3.15;
+    const [restaurado] = Storage.desserializar(Storage.serializar([original]));
+    assert.equal(restaurado.kits[0].mangueiras[0].precoMetro, 6.94);
+    assert.equal(restaurado.kits[0].conjunto1Preco, 12.5);
+    assert.equal(restaurado.kits[0].conjunto2Preco, 8.2);
+    assert.equal(restaurado.kits[0].terminaisExtras[0].precoUnitario, 3.15);
+    assert.equal(Storage.normalizarOrcamento(orcamento()).kits[0].conjunto1Preco, null);
+});

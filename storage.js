@@ -19,6 +19,10 @@
         return Number.isFinite(convertido) ? Math.max(minimo, Math.min(convertido, maximo)) : minimo;
     }
 
+    function precoOuNulo(valor) {
+        return valor == null || valor === '' ? null : numero(valor);
+    }
+
     function idSeguro(valor, prefixo) {
         const atual = texto(valor, 100);
         if (/^[a-zA-Z0-9_-]+$/.test(atual)) return atual;
@@ -36,20 +40,24 @@
                 value: texto(item?.value, 200),
                 texto: texto(item?.texto, 1000),
                 mm: numero(item?.mm, 0, 100000000),
-                ipi: numero(item?.ipi, 0, 100)
+                ipi: numero(item?.ipi, 0, 100),
+                precoMetro: precoOuNulo(item?.precoMetro)
             })),
             conjunto1: texto(kit.conjunto1, 200),
             conjunto1Texto: texto(kit.conjunto1Texto, 1000),
             conjunto1Ipi: numero(kit.conjunto1Ipi, 0, 100),
+            conjunto1Preco: precoOuNulo(kit.conjunto1Preco),
             conjunto2: texto(kit.conjunto2, 200),
             conjunto2Texto: texto(kit.conjunto2Texto, 1000),
             conjunto2Ipi: numero(kit.conjunto2Ipi, 0, 100),
+            conjunto2Preco: precoOuNulo(kit.conjunto2Preco),
             terminaisExtras: (Array.isArray(kit.terminaisExtras) ? kit.terminaisExtras : []).slice(0, 100).map(item => ({
                 id: texto(item?.id, 100),
                 value: texto(item?.value, 200),
                 texto: texto(item?.texto, 1000),
                 qty: Math.max(1, Math.round(numero(item?.qty, 1, 999999))),
-                ipi: numero(item?.ipi, 0, 100)
+                ipi: numero(item?.ipi, 0, 100),
+                precoUnitario: precoOuNulo(item?.precoUnitario)
             })),
             subtotal: numero(kit.subtotal),
             ipiTotal: numero(kit.ipiTotal),
@@ -92,14 +100,13 @@
     function normalizarLista(lista) {
         if (!Array.isArray(lista)) return [];
         const unicos = new Map();
-        lista.slice(0, LIMITE_ORCAMENTOS * 2).forEach((item, indice) => {
+        lista.forEach((item, indice) => {
             const orcamento = normalizarOrcamento(item, indice);
             const anterior = unicos.get(orcamento.id);
             if (!anterior || orcamento.atualizadoEm >= anterior.atualizadoEm) unicos.set(orcamento.id, orcamento);
         });
         return [...unicos.values()]
-            .sort((a, b) => b.atualizadoEm.localeCompare(a.atualizadoEm))
-            .slice(0, LIMITE_ORCAMENTOS);
+            .sort((a, b) => b.atualizadoEm.localeCompare(a.atualizadoEm));
     }
 
     function serializar(lista) {

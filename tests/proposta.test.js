@@ -55,3 +55,19 @@ test('PDF omite custos adicionais zerados sem ocultar o total do IPI', () => {
     assert.doesNotMatch(html, /PRENSAGEM E EMBALAGEM/);
     assert.match(html, /TOTAL DO IPI/);
 });
+
+test('PDF mostra valor unitário cuja multiplicação reconcilia com o total da linha', () => {
+    const original = { ...kit, total: 100.05, ipiTotal: 0, quantidade: 3 };
+    const context = vm.createContext({
+        SimuladorLogic, kitTeste: original,
+        document: {
+            body: {},
+            getElementById: id => id === 'desconto' ? { value: '10', addEventListener() {} } : null,
+            querySelectorAll: () => [], addEventListener() {}
+        }
+    });
+    vm.runInContext(script, context);
+    const html = vm.runInContext('kits = [kitTeste]; montarHtmlOrcamento()', context);
+    assert.match(html, /<td class="col-vunit">R\$\s*90,047<\/td>/);
+    assert.match(html, /<td class="col-vtotal">R\$\s*270,14<\/td>/);
+});

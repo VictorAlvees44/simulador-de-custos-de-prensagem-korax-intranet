@@ -159,8 +159,12 @@ npm test
 - Os valores da proposta são líquidos do desconto interno e conciliados em centavos; o IPI não é somado novamente aos preços que já o incluem.
 - Kits vazios ou kits com mangueira sem os dois terminais obrigatórios não podem ser salvos.
 - Os orçamentos podem ser salvos no navegador, reabertos, editados, duplicados e excluídos. Cada registro mantém uma cópia dos preços e IPIs usados naquele momento.
-- A atualização pelos preços atuais é uma ação separada e exige confirmação; abrir ou recalcular o total não altera automaticamente os preços históricos.
+- Os novos registros guardam também o preço unitário de cada componente: alterar quantidade ou comprimento ao editar um kit não troca esses preços. Kits de versões antigas, que só guardavam o total, avisam antes de usar os preços atuais ao serem editados.
+- A atualização pelos preços atuais é uma ação separada e exige confirmação; ela é bloqueada se algum componente não possuir preço válido no catálogo. Abrir ou recalcular o total não altera automaticamente os preços históricos.
+- Ao abrir outro orçamento com alterações não salvas, o sistema pede confirmação. O histórico comporta até 100 orçamentos; ao atingir esse limite, um novo registro é recusado com aviso, sem excluir os existentes.
 - Ao gerar o PDF, o orçamento também é salvo automaticamente no navegador. A cópia editável em JSON permite transferir ou restaurar o histórico; o PDF continua sendo apenas o documento final para envio ou impressão.
+- Se o salvamento automático falhar, a impressão é interrompida para não sugerir que existe uma cópia editável.
+- Valores unitários no PDF podem ter mais de duas casas decimais quando necessário para conciliar a quantidade com o total da linha em centavos.
 - A limpeza dos dados do navegador remove o histórico local que não tiver uma cópia editável baixada.
 
 ## Segurança e operação

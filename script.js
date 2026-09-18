@@ -593,6 +593,24 @@ function moeda(valor) {
     return Number(valor || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 }
 
+function moedaUnitarioConciliado(valorLinha, quantidade) {
+    const qtd = Math.max(1, Number(quantidade) || 1);
+    const unitario = valorLinha / qtd;
+    const centavosLinha = Math.round(valorLinha * 100);
+    for (let decimais = 2; decimais <= 12; decimais++) {
+        const exibido = Number(unitario.toFixed(decimais));
+        if (Math.round(exibido * qtd * 100) === centavosLinha) {
+            return exibido.toLocaleString('pt-BR', {
+                style: 'currency', currency: 'BRL',
+                minimumFractionDigits: decimais, maximumFractionDigits: decimais
+            });
+        }
+    }
+    return unitario.toLocaleString('pt-BR', {
+        style: 'currency', currency: 'BRL', maximumFractionDigits: 12
+    });
+}
+
 function moedaInput(valor) {
     return Number(valor || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 });
 }
@@ -773,7 +791,8 @@ function obterDadosKitDoFormulario() {
         value: UI.get(mid)?.value || '',
         texto: textoSelecionado(mid),
         mm: UI.get(`mm_${mid}`)?.value || '',
-        ipi: getIpiPercentual(mid)
+        ipi: getIpiPercentual(mid),
+        precoMetro: valor(`valor_${mid}`)
     })).filter(m => m.value);
 
     return {
@@ -783,9 +802,11 @@ function obterDadosKitDoFormulario() {
         conjunto1: UI.get('terminalA')?.value || '',
         conjunto1Texto: textoSelecionado('terminalA'),
         conjunto1Ipi: getIpiPercentual('terminalA'),
+        conjunto1Preco: valor('valorTerminalA'),
         conjunto2: UI.get('terminalB')?.value || '',
         conjunto2Texto: textoSelecionado('terminalB'),
         conjunto2Ipi: getIpiPercentual('terminalB'),
+        conjunto2Preco: valor('valorTerminalB'),
         terminaisExtras: terminalIds
             .filter(id => !['terminalA', 'terminalB'].includes(id))
             .map(id => ({
@@ -793,7 +814,8 @@ function obterDadosKitDoFormulario() {
                 value: UI.get(id)?.value || '',
                 texto: textoSelecionado(id),
                 qty: getQtdTerminalExtra(id),
-                ipi: getIpiPercentual(id)
+                ipi: getIpiPercentual(id),
+                precoUnitario: valor(`valor_${id}`)
             })),
         subtotal: calculo.subtotal,
         ipiTotal: calculo.ipi,
@@ -957,6 +979,27 @@ function precoItem(lista, codigo, faturamento) {
     return SimuladorLogic.numeroDeMoeda(item[faturamento]);
 }
 
+function itensSemPrecoAtual(kit, faturamento) {
+    const componentes = [
+        ...(kit.mangueiras || []).map(item => ({ item, lista: dados.mangueiras })),
+        { item: { value: kit.conjunto1 }, lista: dados.terminais },
+        { item: { value: kit.conjunto2 }, lista: dados.terminais },
+        ...(kit.terminaisExtras || []).map(item => ({ item, lista: dados.terminais }))
+    ];
+    return componentes
+        .filter(({ item }) => SimuladorLogic.componenteSelecionado(item.value))
+        .filter(({ item, lista }) => precoItem(lista, item.value, faturamento) <= 0)
+        .map(({ item }) => item.value);
+}
+
+function kitTemPrecosHistoricos(kit) {
+    return (kit.mangueiras || []).every(item => item.precoMetro != null)
+        && (!SimuladorLogic.componenteSelecionado(kit.conjunto1) || kit.conjunto1Preco != null)
+        && (!SimuladorLogic.componenteSelecionado(kit.conjunto2) || kit.conjunto2Preco != null)
+        && (kit.terminaisExtras || []).every(item =>
+            !SimuladorLogic.componenteSelecionado(item.value) || item.precoUnitario != null);
+}
+
 function textoItem(lista, codigo, fallback) {
     const item = buscarItem(lista, codigo);
     if (!item) return fallback || '';
@@ -974,7 +1017,7 @@ function recalcularKit(kit, faturamento) {
             totalMangueiras += item.total;
             totalIpi += item.ipi;
         }
-        return { ...m, texto: textoItem(dados.mangueiras, m.value, m.texto) };
+        return { ...m, texto: textoItem(dados.mangueiras, m.value, m.texto), precoMetro: preco };
     });
 
     const terminaisPrincipais = [
@@ -1008,10 +1051,13 @@ function recalcularKit(kit, faturamento) {
         faturamento,
         mangueiras: mangueirasAtualizadas,
         conjunto1Texto: textoItem(dados.terminais, kit.conjunto1, kit.conjunto1Texto),
+        conjunto1Preco: precoItem(dados.terminais, kit.conjunto1, faturamento),
         conjunto2Texto: textoItem(dados.terminais, kit.conjunto2, kit.conjunto2Texto),
+        conjunto2Preco: precoItem(dados.terminais, kit.conjunto2, faturamento),
         terminaisExtras: (kit.terminaisExtras || []).map(extra => ({
             ...extra,
-            texto: textoItem(dados.terminais, extra.value, extra.texto)
+            texto: textoItem(dados.terminais, extra.value, extra.texto),
+            precoUnitario: precoItem(dados.terminais, extra.value, faturamento)
         })),
         subtotal: calculo.subtotal,
         ipiTotal: calculo.ipi,
@@ -1059,6 +1105,16 @@ function atualizarResultadoOrcamento() {
 function editarKit(id) {
     const kit = kits.find(item => item.id === id);
     if (!kit) return;
+    if (state.catalogo !== 'ready') {
+        alert('Aguarde o catálogo carregar antes de editar este kit. Os preços salvos continuam preservados.');
+        return;
+    }
+    const faltantes = itensSemPrecoAtual(kit, kit.faturamento);
+    if (faltantes.length > 0) {
+        alert(`Não é possível editar este kit: os seguintes itens não estão disponíveis com preço válido no catálogo: ${[...new Set(faltantes)].join(', ')}. O orçamento salvo não foi alterado.`);
+        return;
+    }
+    if (!kitTemPrecosHistoricos(kit) && !confirm('Este kit foi salvo antes de registrar os preços de cada componente. Ao editá-lo, os preços atuais do catálogo serão usados. Deseja continuar?')) return;
     const fatSelect = document.getElementById('faturamento');
     if (fatSelect && fatSelect.value !== kit.faturamento) {
         fatSelect.value = kit.faturamento;
@@ -1077,6 +1133,10 @@ function editarKit(id) {
             UI.setValue(`mm_${mid}`, m.mm);
             UI.setValue(`ipi_${mid}`, m.ipi || 0);
             mostrarDescricaoSelect(mid, true);
+            if (m.precoMetro != null) {
+                UI.setValue(`valor_${mid}`, moedaInput(m.precoMetro));
+                atualizarResumoIpiItem(mid, true);
+            }
         }, 100);
     });
     setTimeout(() => {
@@ -1086,6 +1146,10 @@ function editarKit(id) {
         UI.setValue('ipi_terminalB', kit.conjunto2Ipi || 0);
         mostrarDescricaoSelect('terminalA', false);
         mostrarDescricaoSelect('terminalB', false);
+        if (kit.conjunto1Preco != null) UI.setValue('valorTerminalA', moedaInput(kit.conjunto1Preco));
+        if (kit.conjunto2Preco != null) UI.setValue('valorTerminalB', moedaInput(kit.conjunto2Preco));
+        atualizarResumoIpiItem('terminalA', false);
+        atualizarResumoIpiItem('terminalB', false);
     }, 50);
     (kit.terminaisExtras || []).filter(e => e.value && e.value !== 'na').forEach(extra => {
         adicionarLinhaTerminal();
@@ -1094,9 +1158,11 @@ function editarKit(id) {
             setSelectValue(tid, extra.value);
             UI.setValue(`ipi_${tid}`, extra.ipi || 0);
             mostrarDescricaoSelect(tid, false);
+            if (extra.precoUnitario != null) UI.setValue(`valor_${tid}`, moedaInput(extra.precoUnitario));
             // Restaura a quantidade salva
             const qty = Number(extra.qty || 1);
             if (qty > 1) setQtdTerminalExtra(tid, qty);
+            else atualizarTotalTerminalExtra(tid);
         }, 100);
     });
 
@@ -1270,13 +1336,17 @@ function lerOrcamentosLocais() {
     }
 }
 
-function gravarOrcamentosLocais() {
+function gravarOrcamentosLocais(lista = orcamentosSalvos) {
     try {
-        orcamentosSalvos = OrcamentoStorage.normalizarLista(orcamentosSalvos);
-        localStorage.setItem(ORCAMENTOS_STORAGE_KEY, JSON.stringify(orcamentosSalvos));
+        const normalizados = OrcamentoStorage.normalizarLista(lista);
+        if (normalizados.length > OrcamentoStorage.LIMITE_ORCAMENTOS) {
+            throw new Error(`O limite de ${OrcamentoStorage.LIMITE_ORCAMENTOS} orçamentos foi atingido. Baixe uma cópia editável e exclua registros antigos antes de salvar novos orçamentos.`);
+        }
+        localStorage.setItem(ORCAMENTOS_STORAGE_KEY, JSON.stringify(normalizados));
+        orcamentosSalvos = normalizados;
         return true;
     } catch (erro) {
-        alert('Não foi possível salvar no navegador. Verifique se o armazenamento local está disponível.');
+        alert(erro?.message?.startsWith('O limite de ') ? erro.message : 'Não foi possível salvar no navegador. Verifique se o armazenamento local está disponível.');
         return false;
     }
 }
@@ -1350,6 +1420,26 @@ function criarSnapshotOrcamento(id = orcamentoAtivoId || gerarOrcamentoId()) {
     });
 }
 
+function haAlteracoesNaoSalvas() {
+    const rascunhoKit = kitEmEdicaoId !== null
+        || Boolean(String(UI.get('nomeKit')?.value || '').trim())
+        || [...getMangueiraIds(), ...getTerminalIds()].some(id =>
+            SimuladorLogic.componenteSelecionado(UI.get(id)?.value));
+    if (rascunhoKit) return true;
+    const ativo = orcamentosSalvos.find(item => item.id === orcamentoAtivoId);
+    if (ativo) {
+        const atual = criarSnapshotOrcamento(ativo.id);
+        return JSON.stringify([atual.campos, atual.faturamento, atual.kits, atual.custos])
+            !== JSON.stringify([ativo.campos, ativo.faturamento, ativo.kits, ativo.custos]);
+    }
+    const campos = camposDoOrcamento();
+    return kits.length > 0 || Boolean(UI.get('faturamento')?.value)
+        || Object.values({ prensagem: UI.get('prensagem')?.value, embalagem: UI.get('embalagem')?.value, desconto: UI.get('desconto')?.value })
+            .some(valor => String(valor || '').trim() && Number(numeroDeMoeda(valor)) !== 0)
+        || Object.entries(campos).some(([id, valor]) =>
+            id !== 'orcData' && !CAMPOS_EMPRESA.includes(id) && String(valor || '').trim());
+}
+
 function salvarOrcamentoLocal(opcoes = {}) {
     if (kits.length === 0) {
         alert('Salve pelo menos um kit antes de salvar o orçamento.');
@@ -1357,9 +1447,10 @@ function salvarOrcamentoLocal(opcoes = {}) {
     }
     const snapshot = criarSnapshotOrcamento();
     const indice = orcamentosSalvos.findIndex(item => item.id === snapshot.id);
-    if (indice >= 0) orcamentosSalvos[indice] = snapshot;
-    else orcamentosSalvos.push(snapshot);
-    if (!gravarOrcamentosLocais()) return false;
+    const candidatos = [...orcamentosSalvos];
+    if (indice >= 0) candidatos[indice] = snapshot;
+    else candidatos.push(snapshot);
+    if (!gravarOrcamentosLocais(candidatos)) return false;
     orcamentoAtivoId = snapshot.id;
     renderizarOrcamentosSalvos(UI.get('buscaOrcamentos')?.value || '');
     const mensagem = opcoes.automatico
@@ -1369,9 +1460,11 @@ function salvarOrcamentoLocal(opcoes = {}) {
     return true;
 }
 
-function abrirOrcamentoLocal(id) {
+function abrirOrcamentoLocal(id, ignorarAlteracoes = false) {
     const orcamento = orcamentosSalvos.find(item => item.id === id);
     if (!orcamento) return;
+    if (!ignorarAlteracoes && haAlteracoesNaoSalvas()
+        && !confirm('Abrir este orçamento? As alterações atuais que ainda não foram salvas serão descartadas.')) return;
     limparFormularioKit();
     document.querySelectorAll('input[id^="orc"], select[id^="orc"]').forEach(campo => {
         if (Object.prototype.hasOwnProperty.call(orcamento.campos, campo.id)) campo.value = orcamento.campos[campo.id];
@@ -1421,6 +1514,8 @@ function limparOrcamentoAtual(pedirConfirmacao = true) {
 function duplicarOrcamentoLocal(id) {
     const origem = orcamentosSalvos.find(item => item.id === id);
     if (!origem) return;
+    if (haAlteracoesNaoSalvas()
+        && !confirm('Duplicar este orçamento? As alterações atuais que ainda não foram salvas serão descartadas.')) return;
     const copia = copiarDados(origem);
     const agora = new Date().toISOString();
     copia.id = gerarOrcamentoId();
@@ -1428,18 +1523,17 @@ function duplicarOrcamentoLocal(id) {
     copia.atualizadoEm = agora;
     const numero = String(copia.campos.orcNumero || '').trim();
     copia.campos.orcNumero = numero ? `${numero} - CÓPIA` : 'CÓPIA';
-    orcamentosSalvos.push(copia);
-    if (!gravarOrcamentosLocais()) return;
+    if (!gravarOrcamentosLocais([...orcamentosSalvos, copia])) return;
     renderizarOrcamentosSalvos(UI.get('buscaOrcamentos')?.value || '');
-    abrirOrcamentoLocal(copia.id);
+    abrirOrcamentoLocal(copia.id, true);
     mostrarMensagemHistorico('Cópia criada. Edite os dados e atualize o orçamento.');
 }
 
 function excluirOrcamentoLocal(id) {
     const orcamento = orcamentosSalvos.find(item => item.id === id);
     if (!orcamento || !confirm(`Excluir "${nomeDoOrcamento(orcamento)}" deste navegador?`)) return;
-    orcamentosSalvos = orcamentosSalvos.filter(item => item.id !== id);
-    if (!gravarOrcamentosLocais()) return;
+    const restantes = orcamentosSalvos.filter(item => item.id !== id);
+    if (!gravarOrcamentosLocais(restantes)) return;
     if (orcamentoAtivoId === id) limparOrcamentoAtual(false);
     renderizarOrcamentosSalvos(UI.get('buscaOrcamentos')?.value || '');
     mostrarMensagemHistorico('Orçamento excluído deste navegador.');
@@ -1454,6 +1548,11 @@ function atualizarPrecosDoOrcamento() {
     }
     if (!faturamento) {
         alert('Selecione o faturamento antes de atualizar os preços.');
+        return;
+    }
+    const faltantes = [...new Set(kits.flatMap(kit => itensSemPrecoAtual(kit, faturamento)))];
+    if (faltantes.length > 0) {
+        alert(`Os preços não foram atualizados. Estes itens não têm preço válido no catálogo: ${faltantes.join(', ')}.`);
         return;
     }
     if (!confirm('Atualizar todos os produtos deste orçamento com os preços atuais do catálogo?')) return;
@@ -1483,8 +1582,8 @@ async function importarOrcamentos(event) {
     if (!arquivo) return;
     try {
         const importados = OrcamentoStorage.desserializar(await arquivo.text());
-        orcamentosSalvos = OrcamentoStorage.mesclarListas(orcamentosSalvos, importados);
-        if (!gravarOrcamentosLocais()) return;
+        const mesclados = OrcamentoStorage.mesclarListas(orcamentosSalvos, importados);
+        if (!gravarOrcamentosLocais(mesclados)) return;
         renderizarOrcamentosSalvos(UI.get('buscaOrcamentos')?.value || '');
         mostrarMensagemHistorico(`${importados.length} orçamento(s) restaurado(s) da cópia editável.`);
     } catch (erro) {
@@ -1677,7 +1776,7 @@ function montarHtmlOrcamento() {
                     </td>
                     <td class="col-qtd">${linha.qtdDisplay}</td>
                     <td class="col-unid">${linha.unidade}</td>
-                    <td class="col-vunit">${linha.vUnit != null ? moeda(linha.vUnit) : '—'}</td>
+                    <td class="col-vunit">${linha.vUnit != null ? moedaUnitarioConciliado(linha.vTotal, linha.qtdDisplay) : '—'}</td>
                     <td class="col-vtotal">${linha.vTotal != null ? moeda(linha.vTotal) : '—'}</td>
                     <td class="col-ipi">${moeda(linha.vIpi)}</td>
                 </tr>`).join('')}
@@ -1763,7 +1862,7 @@ function prepararOrcamentoParaPdf() {
 async function gerarPdf() {
     const area = prepararOrcamentoParaPdf();
     if (!area) return;
-    salvarOrcamentoLocal({ automatico: true });
+    if (!salvarOrcamentoLocal({ automatico: true })) return;
     const nomeCliente = UI.get('orcCliente')?.value;
     if (nomeCliente) acSalvarNome(nomeCliente);
     const imgEl = area.querySelector('.pdf-logo-area img');
